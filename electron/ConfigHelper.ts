@@ -7,7 +7,7 @@ import { OpenAI } from "openai"
 
 interface Config {
   apiKey: string;
-  apiProvider: "openai" | "gemini" | "anthropic";  // Added provider selection
+  apiProvider: "openai" | "gemini" | "anthropic" | "anywhere";  // Added provider selection
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
@@ -58,7 +58,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate and sanitize model selection to ensure only allowed models are used
    */
-  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic"): string {
+  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "anywhere"): string {
     if (provider === "openai") {
       // Only allow gpt-4o and gpt-4o-mini for OpenAI
       const allowedModels = ['gpt-4o', 'gpt-4o-mini'];
@@ -83,6 +83,18 @@ export class ConfigHelper extends EventEmitter {
         return 'claude-3-7-sonnet-20250219';
       }
       return model;
+    } else if (provider === "anywhere") {
+      // Only allow anywhere models
+      const allowedModels = [
+        'gpt-4o", "gpt-4.1', // 5 times a day
+        "deepseek-r1", "deepseek-v3", // 30 times a day
+        "gpt-4o-mini", "gpt-3.5-turbo", "gpt-4.1-mini", "gpt-4.1-nano", // 200 times a day
+      ];
+      if (!allowedModels.includes(model)) {
+        console.warn(`Invalid Anywhere model specified: ${model}. Using default model: deepseek-v3`);
+        return 'deepseek-v3';
+      }
+      return model;
     }
     // Default fallback
     return model;
@@ -95,7 +107,7 @@ export class ConfigHelper extends EventEmitter {
         const config = JSON.parse(configData);
         
         // Ensure apiProvider is a valid value
-        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic") {
+        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "anywhere") {
           config.apiProvider = "gemini"; // Default to Gemini if invalid
         }
         
@@ -178,10 +190,14 @@ export class ConfigHelper extends EventEmitter {
           updates.extractionModel = "claude-3-7-sonnet-20250219";
           updates.solutionModel = "claude-3-7-sonnet-20250219";
           updates.debuggingModel = "claude-3-7-sonnet-20250219";
-        } else {
+        } else if (updates.apiProvider === "gemini") {
           updates.extractionModel = "gemini-2.0-flash";
           updates.solutionModel = "gemini-2.0-flash";
           updates.debuggingModel = "gemini-2.0-flash";
+        } else {
+          updates.extractionModel = "deepseek-r1";
+          updates.solutionModel = "deepseek-r1";
+          updates.debuggingModel = "deepseek-r1";
         }
       }
       
@@ -225,14 +241,18 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate the API key format
    */
-  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" ): boolean {
+  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "anywhere"): boolean {
     // If provider is not specified, attempt to auto-detect
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
         if (apiKey.trim().startsWith('sk-ant-')) {
           provider = "anthropic";
         } else {
-          provider = "openai";
+          if (apiKey.trim().substring(3).length >= 48) {
+            provider = "anywhere";
+          } else {
+            provider = "openai";
+          }
         }
       } else {
         provider = "gemini";
@@ -248,6 +268,9 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "anthropic") {
       // Basic format validation for Anthropic API keys
       return /^sk-ant-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
+    } else if (provider === "anywhere") {
+      // Basic format validation for Anywhere API keys
+      return /^sk-[a-zA-Z0-9]{48,}$/.test(apiKey.trim());
     }
     
     return false;
@@ -288,7 +311,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test API key with the selected provider
    */
-  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic"): Promise<{valid: boolean, error?: string}> {
+  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "anywhere"): Promise<{valid: boolean, error?: string}> {
     // Auto-detect provider based on key format if not specified
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -296,8 +319,13 @@ export class ConfigHelper extends EventEmitter {
           provider = "anthropic";
           console.log("Auto-detected Anthropic API key format for testing");
         } else {
-          provider = "openai";
-          console.log("Auto-detected OpenAI API key format for testing");
+          if (apiKey.trim().substring(3).length >= 48) {
+            provider = "anywhere";
+            console.log("Auto-detected Anywhere API key format for testing");
+          } else {
+            provider = "openai";
+            console.log("Auto-detected OpenAI API key format for testing");
+          }
         }
       } else {
         provider = "gemini";
@@ -311,6 +339,8 @@ export class ConfigHelper extends EventEmitter {
       return this.testGeminiKey(apiKey);
     } else if (provider === "anthropic") {
       return this.testAnthropicKey(apiKey);
+    } else if (provider === "anywhere") {
+      return this.testAnywhereKey(apiKey);
     }
     
     return { valid: false, error: "Unknown API provider" };
@@ -393,6 +423,39 @@ export class ConfigHelper extends EventEmitter {
       
       return { valid: false, error: errorMessage };
     }
+  }
+
+    /**
+   * Test Anywhere API key
+   * Note: This is a simplified implementation since we don't have the actual anywhere client
+   */
+    private async testAnywhereKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+      try {
+        const openai = new OpenAI({ 
+          apiKey,
+          baseURL: 'https://api.chatanywhere.tech/v1'
+         });
+        // Make a simple API call to test the key
+        await openai.models.list();
+        return { valid: true };
+      } catch (error: any) {
+        console.error('Anywhere AI API key test failed:', error);
+        
+        // Determine the specific error type for better error messages
+        let errorMessage = 'Unknown error validating Anywhere API key';
+        
+        if (error.status === 401) {
+          errorMessage = 'Invalid API key. Please check your Anywhere AI key and try again.';
+        } else if (error.status === 429) {
+          errorMessage = 'Rate limit exceeded. Your Anywhere AI API key has reached its request limit or has insufficient quota.';
+        } else if (error.status === 500) {
+          errorMessage = 'Anywhere server error. Please try again later.';
+        } else if (error.message) {
+          errorMessage = `Error: ${error.message}`;
+        }
+        
+        return { valid: false, error: errorMessage };
+      }
   }
 }
 

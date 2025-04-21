@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { Settings } from "lucide-react";
 import { useToast } from "../../contexts/toast";
 
-type APIProvider = "openai" | "gemini" | "anthropic";
+type APIProvider = "openai" | "gemini" | "anthropic" | "anywhere";
 
 type AIModel = {
   id: string;
@@ -28,6 +28,7 @@ type ModelCategory = {
   openaiModels: AIModel[];
   geminiModels: AIModel[];
   anthropicModels: AIModel[];
+  anywhereModels: AIModel[];
 };
 
 // Define available models for each category
@@ -76,6 +77,28 @@ const modelCategories: ModelCategory[] = [
         name: "Claude 3 Opus",
         description: "Top-level intelligence, fluency, and understanding"
       }
+    ],
+    anywhereModels: [
+      {
+        id: "gpt-4o",
+        name: "gpt-4o",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "gpt-4o-mini",
+        name: "gpt-4o-mini",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "deepseek-r1",
+        name: "deepseek-r1",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "deepseek-v3",
+        name: "deepseek-v3",
+        description: "Faster for chatting, translation, and summarization"
+      }
     ]
   },
   {
@@ -122,6 +145,28 @@ const modelCategories: ModelCategory[] = [
         name: "Claude 3 Opus",
         description: "Top-level intelligence, fluency, and understanding"
       }
+    ],
+    anywhereModels: [
+      {
+        id: "gpt-4o",
+        name: "gpt-4o",
+        description: "Strong overall performance for coding tasks"
+      },
+      {
+        id: "gpt-4o-mini",
+        name: "gpt-4o-mini",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "deepseek-r1",
+        name: "deepseek-r1",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "deepseek-v3",
+        name: "deepseek-v3",
+        description: "Faster for chatting, translation, and summarization"
+      }
     ]
   },
   {
@@ -167,6 +212,28 @@ const modelCategories: ModelCategory[] = [
         id: "claude-3-opus-20240229",
         name: "Claude 3 Opus",
         description: "Top-level intelligence, fluency, and understanding"
+      }
+    ],
+    anywhereModels: [
+      {
+        id: "gpt-4o",
+        name: "gpt-4o",
+        description: "Best for analyzing code and error messages"
+      },
+      {
+        id: "gpt-4o-mini",
+        name: "gpt-4o-mini",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "deepseek-r1",
+        name: "deepseek-r1",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "deepseek-v3",
+        name: "deepseek-v3",
+        description: "Faster for chatting, translation, and summarization"
       }
     ]
   }
@@ -251,6 +318,10 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setExtractionModel("claude-3-7-sonnet-20250219");
       setSolutionModel("claude-3-7-sonnet-20250219");
       setDebuggingModel("claude-3-7-sonnet-20250219");
+    } else if (provider === "anywhere") {
+      setExtractionModel("deepseek-r1");
+      setSolutionModel("deepseek-r1");
+      setDebuggingModel("deepseek-r1");
     }
   };
 
@@ -348,6 +419,26 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               </div>
               <div
                 className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
+                  apiProvider === "anywhere"
+                    ? "bg-white/10 border border-white/20"
+                    : "bg-black/30 border border-white/5 hover:bg-white/5"
+                }`}
+                onClick={() => handleProviderChange("anywhere")}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      apiProvider === "anywhere" ? "bg-white" : "bg-white/20"
+                    }`}
+                  />
+                  <div className="flex flex-col">
+                    <p className="font-medium text-white text-sm">Anywhere</p>
+                    <p className="text-xs text-white/60">GPT-4o models</p>
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
                   apiProvider === "gemini"
                     ? "bg-white/10 border border-white/20"
                     : "bg-black/30 border border-white/5 hover:bg-white/5"
@@ -425,6 +516,18 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to <button 
                     onClick={() => openExternalLink('https://platform.openai.com/api-keys')} 
+                    className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
+                  </p>
+                  <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
+                </>
+              ) : apiProvider === "anywhere" ? (
+                <>
+                  <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
+                    onClick={() => openExternalLink('https://github.com/')} 
+                    className="text-blue-400 hover:underline cursor-pointer">OpenAI</button>
+                  </p>
+                  <p className="text-xs text-white/60 mb-1">2. Go to <button 
+                    onClick={() => openExternalLink('https://github.com/mmjiang2019/interview-coder-withoupaywall-opensource')} 
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
@@ -511,6 +614,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               const models = 
                 apiProvider === "openai" ? category.openaiModels : 
                 apiProvider === "gemini" ? category.geminiModels :
+                apiProvider === "anywhere" ? category.anywhereModels : 
                 category.anthropicModels;
               
               return (

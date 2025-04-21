@@ -31,24 +31,26 @@ interface GeminiResponse {
     finishReason: string;
   }>;
 }
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: Array<{
-    type: 'text' | 'image';
-    text?: string;
-    source?: {
-      type: 'base64';
-      media_type: string;
-      data: string;
-    };
-  }>;
-}
+// UnComment, useless currently.
+// interface AnthropicMessage {
+//   role: 'user' | 'assistant';
+//   content: Array<{
+//     type: 'text' | 'image';
+//     text?: string;
+//     source?: {
+//       type: 'base64';
+//       media_type: string;
+//       data: string;
+//     };
+//   }>;
+// }
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
   private openaiClient: OpenAI | null = null
   private geminiApiKey: string | null = null
   private anthropicClient: Anthropic | null = null
+  private anywhereClient: OpenAI | null = null // TODO: fix me for anywhere
 
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
@@ -75,38 +77,37 @@ export class ProcessingHelper {
       const config = configHelper.loadConfig();
       
       if (config.apiProvider === "openai") {
-        if (config.apiKey) {
+        this.geminiApiKey = null;
+        this.anthropicClient = null;
+        this.anywhereClient = null;
+      if (config.apiKey) {
           this.openaiClient = new OpenAI({ 
             apiKey: config.apiKey,
             timeout: 60000, // 60 second timeout
             maxRetries: 2   // Retry up to 2 times
           });
-          this.geminiApiKey = null;
-          this.anthropicClient = null;
           console.log("OpenAI client initialized successfully");
         } else {
           this.openaiClient = null;
-          this.geminiApiKey = null;
-          this.anthropicClient = null;
           console.warn("No API key available, OpenAI client not initialized");
         }
       } else if (config.apiProvider === "gemini"){
         // Gemini client initialization
         this.openaiClient = null;
         this.anthropicClient = null;
+        this.anywhereClient = null;
         if (config.apiKey) {
           this.geminiApiKey = config.apiKey;
           console.log("Gemini API key set successfully");
         } else {
-          this.openaiClient = null;
           this.geminiApiKey = null;
-          this.anthropicClient = null;
           console.warn("No API key available, Gemini client not initialized");
         }
       } else if (config.apiProvider === "anthropic") {
         // Reset other clients
         this.openaiClient = null;
         this.geminiApiKey = null;
+        this.anywhereClient = null;
         if (config.apiKey) {
           this.anthropicClient = new Anthropic({
             apiKey: config.apiKey,
@@ -115,16 +116,27 @@ export class ProcessingHelper {
           });
           console.log("Anthropic client initialized successfully");
         } else {
-          this.openaiClient = null;
-          this.geminiApiKey = null;
           this.anthropicClient = null;
           console.warn("No API key available, Anthropic client not initialized");
         }
+      } else if (config.apiProvider === "anywhere") {
+        // Anywhere client initialization
+        this.openaiClient = null;
+        this.geminiApiKey = null;
+        this.anthropicClient = null;
+        this.anywhereClient = new OpenAI({ 
+          apiKey: config.apiKey,
+          baseURL: "https://api.chatanywhere.tech/v1", // Set the base URL for Anywhere API
+          timeout: 60000, // 60 second timeout
+          maxRetries: 2   // Retry up to 2 times
+        });
+        console.log("Anywhere client initialized successfully");
+      } else {
+        this.anywhereClient = null;
+        console.warn("Unknown API provider, no client initialized");
       }
     } catch (error) {
       console.error("Failed to initialize AI client:", error);
-      this.openaiClient = null;
-      this.geminiApiKey = null;
       this.anthropicClient = null;
     }
   }
@@ -229,6 +241,17 @@ export class ProcessingHelper {
       
       if (!this.anthropicClient) {
         console.error("Anthropic client not initialized");
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
+        );
+        return;
+      }
+    } else if (config.apiProvider === "anywhere" && !this.anywhereClient) {
+      // Add check for Anywhere client
+      this.initializeAIClient();
+      
+      if (!this.anywhereClient) {
+        console.error("Anywhere client not initialized");
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.API_KEY_INVALID
         );
@@ -515,6 +538,61 @@ export class ProcessingHelper {
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
           };
         }
+      } else if (config.apiProvider === "anywhere") {
+        // Verify Anywhere client
+        if (!this.anywhereClient) {
+          this.initializeAIClient(); // Try to reinitialize
+          
+          if (!this.anywhereClient) {
+            return {
+              success: false,
+              error: "Anywhere API key not configured or invalid. Please check your settings."
+            };
+          }
+        }
+
+        // Use Anywhere for processing
+        const messages = [
+          {
+            role: "system" as const, 
+            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
+          },
+          {
+            role: "user" as const,
+            content: [
+              {
+                type: "text" as const, 
+                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
+              },
+              ...imageDataList.map(data => ({
+                type: "image_url" as const,
+                image_url: { url: `data:image/png;base64,${data}` }
+              }))
+            ]
+          }
+        ];
+
+        // Send to Anywhere Vision API
+        const extractionResponse = await this.openaiClient.chat.completions.create({
+          model: config.extractionModel || "deepseek-r1",
+          messages: messages,
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+
+        // Parse the response
+        try {
+          const responseText = extractionResponse.choices[0].message.content;
+          // Handle when OpenAI might wrap the JSON in markdown code blocks
+          const jsonText = responseText.replace(/```json|```/g, '').trim();
+          problemInfo = JSON.parse(jsonText);
+        } catch (error) {
+          console.error("Error parsing Anywhere response:", error);
+          return {
+            success: false,
+            error: "Failed to parse problem information. Please try again or use clearer screenshots."
+          };
+        }
       } else if (config.apiProvider === "gemini")  {
         // Use Gemini API
         if (!this.geminiApiKey) {
@@ -776,6 +854,27 @@ Your solution should be efficient, well-commented, and handle edge cases.
         // Send to OpenAI API
         const solutionResponse = await this.openaiClient.chat.completions.create({
           model: config.solutionModel || "gpt-4o",
+          messages: [
+            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
+            { role: "user", content: promptText }
+          ],
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+
+        responseContent = solutionResponse.choices[0].message.content;
+      } else if (config.apiProvider == "anywhere") {
+          // Anywhere processing
+          if (!this.anywhereClient) {
+          return {
+            success: false,
+            error: "Anywhere API key not configured. Please check your settings."
+          };
+        }
+        
+        // Send to OpenAI API
+        const solutionResponse = await this.anywhereClient.chat.completions.create({
+          model: config.solutionModel || "deepseek-r1",
           messages: [
             { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
             { role: "user", content: promptText }
@@ -1068,6 +1167,71 @@ If you include code examples, use proper markdown code blocks with language spec
 
         const debugResponse = await this.openaiClient.chat.completions.create({
           model: config.debuggingModel || "gpt-4o",
+          messages: messages,
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+
+        debugContent = debugResponse.choices[0].message.content;
+      } else if (config.apiProvider === "anywhere") {
+        if (!this.anywhereClient) {
+          return {
+            success: false,
+            error: "OpenAI API key not configured. Please check your settings."
+          };
+        }
+        
+        const messages = [
+          {
+            role: "system" as const, 
+            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+
+Your response MUST follow this exact structure with these section headers (use ### for headers):
+### Issues Identified
+- List each issue as a bullet point with clear explanation
+
+### Specific Improvements and Corrections
+- List specific code changes needed as bullet points
+
+### Optimizations
+- List any performance optimizations if applicable
+
+### Explanation of Changes Needed
+Here provide a clear explanation of why the changes are needed
+
+### Key Points
+- Summary bullet points of the most important takeaways
+
+If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+          },
+          {
+            role: "user" as const,
+            content: [
+              {
+                type: "text" as const, 
+                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
+1. What issues you found in my code
+2. Specific improvements and corrections
+3. Any optimizations that would make the solution better
+4. A clear explanation of the changes needed` 
+              },
+              ...imageDataList.map(data => ({
+                type: "image_url" as const,
+                image_url: { url: `data:image/png;base64,${data}` }
+              }))
+            ]
+          }
+        ];
+
+        if (mainWindow) {
+          mainWindow.webContents.send("processing-status", {
+            message: "Analyzing code and generating debug feedback...",
+            progress: 60
+          });
+        }
+
+        const debugResponse = await this.anywhereClient.chat.completions.create({
+          model: config.debuggingModel || "deepseek-r1",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
