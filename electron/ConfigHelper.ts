@@ -7,7 +7,7 @@ import { OpenAI } from "openai"
 
 interface Config {
   apiKey: string;
-  apiProvider: "openai" | "gemini" | "anthropic" | "anywhere";  // Added provider selection
+  apiProvider: "openai" | "gemini" | "anthropic" | "siliconflow" | "siliconflow";  // Added provider selection
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
@@ -58,7 +58,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate and sanitize model selection to ensure only allowed models are used
    */
-  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "anywhere"): string {
+  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "siliconflow" | "siliconflow"): string {
     if (provider === "openai") {
       // Only allow gpt-4o and gpt-4o-mini for OpenAI
       const allowedModels = ['gpt-4o', 'gpt-4o-mini'];
@@ -83,16 +83,14 @@ export class ConfigHelper extends EventEmitter {
         return 'claude-3-7-sonnet-20250219';
       }
       return model;
-    } else if (provider === "anywhere") {
-      // Only allow anywhere models
+    } else if (provider === "siliconflow") {
+      // Only allow siliconflow models
       const allowedModels = [
-        'gpt-4o", "gpt-4.1', // 5 times a day
-        "deepseek-r1", "deepseek-v3", // 30 times a day
-        "gpt-4o-mini", "gpt-3.5-turbo", "gpt-4.1-mini", "gpt-4.1-nano", // 200 times a day
+        'Qwen2.5-7B-Instruct', 'DeepSeek-R1-Distill-Qwen-7B' // free
       ];
       if (!allowedModels.includes(model)) {
-        console.warn(`Invalid Anywhere model specified: ${model}. Using default model: deepseek-v3`);
-        return 'deepseek-v3';
+        console.warn(`Invalid Siliconflow model specified: ${model}. Using default model: Qwen2.5-7B-Instruct`);
+        return 'Qwen2.5-7B-Instruct';
       }
       return model;
     }
@@ -107,7 +105,7 @@ export class ConfigHelper extends EventEmitter {
         const config = JSON.parse(configData);
         
         // Ensure apiProvider is a valid value
-        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "anywhere") {
+        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "siliconflow" && config.apiProvider !== "siliconflow") {
           config.apiProvider = "gemini"; // Default to Gemini if invalid
         }
         
@@ -195,9 +193,9 @@ export class ConfigHelper extends EventEmitter {
           updates.solutionModel = "gemini-2.0-flash";
           updates.debuggingModel = "gemini-2.0-flash";
         } else {
-          updates.extractionModel = "deepseek-r1";
-          updates.solutionModel = "deepseek-r1";
-          updates.debuggingModel = "deepseek-r1";
+          updates.extractionModel = "Qwen2.5-7B-Instruct";
+          updates.solutionModel = "Qwen2.5-7B-Instruct";
+          updates.debuggingModel = "Qwen2.5-7B-Instruct";
         }
       }
       
@@ -241,7 +239,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate the API key format
    */
-  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "anywhere"): boolean {
+  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "siliconflow" | "siliconflow"): boolean {
     // If provider is not specified, attempt to auto-detect
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -249,7 +247,7 @@ export class ConfigHelper extends EventEmitter {
           provider = "anthropic";
         } else {
           if (apiKey.trim().substring(3).length >= 48) {
-            provider = "anywhere";
+            provider = "siliconflow";
           } else {
             provider = "openai";
           }
@@ -268,8 +266,8 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "anthropic") {
       // Basic format validation for Anthropic API keys
       return /^sk-ant-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
-    } else if (provider === "anywhere") {
-      // Basic format validation for Anywhere API keys
+    } else if (provider === "siliconflow") {
+      // Basic format validation for Siliconflow API keys
       return /^sk-[a-zA-Z0-9]{48,}$/.test(apiKey.trim());
     }
     
@@ -311,7 +309,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test API key with the selected provider
    */
-  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "anywhere"): Promise<{valid: boolean, error?: string}> {
+  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "siliconflow"): Promise<{valid: boolean, error?: string}> {
     // Auto-detect provider based on key format if not specified
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -320,8 +318,8 @@ export class ConfigHelper extends EventEmitter {
           console.log("Auto-detected Anthropic API key format for testing");
         } else {
           if (apiKey.trim().substring(3).length >= 48) {
-            provider = "anywhere";
-            console.log("Auto-detected Anywhere API key format for testing");
+            provider = "siliconflow";
+            console.log("Auto-detected Siliconflow API key format for testing");
           } else {
             provider = "openai";
             console.log("Auto-detected OpenAI API key format for testing");
@@ -339,8 +337,8 @@ export class ConfigHelper extends EventEmitter {
       return this.testGeminiKey(apiKey);
     } else if (provider === "anthropic") {
       return this.testAnthropicKey(apiKey);
-    } else if (provider === "anywhere") {
-      return this.testAnywhereKey(apiKey);
+    } else if (provider === "siliconflow") {
+      return this.testSiliconflowKey(apiKey);
     }
     
     return { valid: false, error: "Unknown API provider" };
@@ -426,30 +424,30 @@ export class ConfigHelper extends EventEmitter {
   }
 
     /**
-   * Test Anywhere API key
-   * Note: This is a simplified implementation since we don't have the actual anywhere client
+   * Test Siliconflow API key
+   * Note: This is a simplified implementation since we don't have the actual siliconflow client
    */
-    private async testAnywhereKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+    private async testSiliconflowKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
       try {
         const openai = new OpenAI({ 
           apiKey,
-          baseURL: 'https://api.chatanywhere.tech/v1'
+          baseURL: 'https://api.siliconflow.cn/v1'
          });
         // Make a simple API call to test the key
         await openai.models.list();
         return { valid: true };
       } catch (error: any) {
-        console.error('Anywhere AI API key test failed:', error);
+        console.error('Siliconflow AI API key test failed:', error);
         
         // Determine the specific error type for better error messages
-        let errorMessage = 'Unknown error validating Anywhere API key';
+        let errorMessage = 'Unknown error validating Siliconflow API key';
         
         if (error.status === 401) {
-          errorMessage = 'Invalid API key. Please check your Anywhere AI key and try again.';
+          errorMessage = 'Invalid API key. Please check your Siliconflow AI key and try again.';
         } else if (error.status === 429) {
-          errorMessage = 'Rate limit exceeded. Your Anywhere AI API key has reached its request limit or has insufficient quota.';
+          errorMessage = 'Rate limit exceeded. Your Siliconflow AI API key has reached its request limit or has insufficient quota.';
         } else if (error.status === 500) {
-          errorMessage = 'Anywhere server error. Please try again later.';
+          errorMessage = 'Siliconflow server error. Please try again later.';
         } else if (error.message) {
           errorMessage = `Error: ${error.message}`;
         }

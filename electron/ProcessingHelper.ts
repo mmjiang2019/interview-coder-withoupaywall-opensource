@@ -50,7 +50,7 @@ export class ProcessingHelper {
   private openaiClient: OpenAI | null = null
   private geminiApiKey: string | null = null
   private anthropicClient: Anthropic | null = null
-  private anywhereClient: OpenAI | null = null // TODO: fix me for anywhere
+  private siliconflowClient: OpenAI | null = null // TODO: fix me for siliconflow
 
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
@@ -79,7 +79,7 @@ export class ProcessingHelper {
       if (config.apiProvider === "openai") {
         this.geminiApiKey = null;
         this.anthropicClient = null;
-        this.anywhereClient = null;
+        this.siliconflowClient = null;
       if (config.apiKey) {
           this.openaiClient = new OpenAI({ 
             apiKey: config.apiKey,
@@ -95,7 +95,7 @@ export class ProcessingHelper {
         // Gemini client initialization
         this.openaiClient = null;
         this.anthropicClient = null;
-        this.anywhereClient = null;
+        this.siliconflowClient = null;
         if (config.apiKey) {
           this.geminiApiKey = config.apiKey;
           console.log("Gemini API key set successfully");
@@ -107,7 +107,7 @@ export class ProcessingHelper {
         // Reset other clients
         this.openaiClient = null;
         this.geminiApiKey = null;
-        this.anywhereClient = null;
+        this.siliconflowClient = null;
         if (config.apiKey) {
           this.anthropicClient = new Anthropic({
             apiKey: config.apiKey,
@@ -119,20 +119,20 @@ export class ProcessingHelper {
           this.anthropicClient = null;
           console.warn("No API key available, Anthropic client not initialized");
         }
-      } else if (config.apiProvider === "anywhere") {
-        // Anywhere client initialization
+      } else if (config.apiProvider === "siliconflow") {
+        // Siliconflow client initialization
         this.openaiClient = null;
         this.geminiApiKey = null;
         this.anthropicClient = null;
-        this.anywhereClient = new OpenAI({ 
+        this.siliconflowClient = new OpenAI({ 
           apiKey: config.apiKey,
-          baseURL: "https://api.chatanywhere.tech/v1", // Set the base URL for Anywhere API
+          baseURL: "https://api.siliconflow.cn/v1", // Set the base URL for Siliconflow API
           timeout: 60000, // 60 second timeout
           maxRetries: 2   // Retry up to 2 times
         });
-        console.log("Anywhere client initialized successfully");
+        console.log("Siliconflow client initialized successfully");
       } else {
-        this.anywhereClient = null;
+        this.siliconflowClient = null;
         console.warn("Unknown API provider, no client initialized");
       }
     } catch (error) {
@@ -246,12 +246,12 @@ export class ProcessingHelper {
         );
         return;
       }
-    } else if (config.apiProvider === "anywhere" && !this.anywhereClient) {
-      // Add check for Anywhere client
+    } else if (config.apiProvider === "siliconflow" && !this.siliconflowClient) {
+      // Add check for Siliconflow client
       this.initializeAIClient();
       
-      if (!this.anywhereClient) {
-        console.error("Anywhere client not initialized");
+      if (!this.siliconflowClient) {
+        console.error("Siliconflow client not initialized");
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.API_KEY_INVALID
         );
@@ -538,20 +538,20 @@ export class ProcessingHelper {
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
           };
         }
-      } else if (config.apiProvider === "anywhere") {
-        // Verify Anywhere client
-        if (!this.anywhereClient) {
+      } else if (config.apiProvider === "siliconflow") {
+        // Verify Siliconflow client
+        if (!this.siliconflowClient) {
           this.initializeAIClient(); // Try to reinitialize
           
-          if (!this.anywhereClient) {
+          if (!this.siliconflowClient) {
             return {
               success: false,
-              error: "Anywhere API key not configured or invalid. Please check your settings."
+              error: "Siliconflow API key not configured or invalid. Please check your settings."
             };
           }
         }
 
-        // Use Anywhere for processing
+        // Use Siliconflow for processing
         const messages = [
           {
             role: "system" as const, 
@@ -572,9 +572,9 @@ export class ProcessingHelper {
           }
         ];
 
-        // Send to Anywhere Vision API
-        const extractionResponse = await this.openaiClient.chat.completions.create({
-          model: config.extractionModel || "deepseek-r1",
+        // Send to Siliconflow Vision API
+        const extractionResponse = await this.siliconflowClient.chat.completions.create({
+          model: config.extractionModel || "Qwen2.5-7B-Instruct",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -587,7 +587,7 @@ export class ProcessingHelper {
           const jsonText = responseText.replace(/```json|```/g, '').trim();
           problemInfo = JSON.parse(jsonText);
         } catch (error) {
-          console.error("Error parsing Anywhere response:", error);
+          console.error("Error parsing Siliconflow response:", error);
           return {
             success: false,
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
@@ -863,18 +863,18 @@ Your solution should be efficient, well-commented, and handle edge cases.
         });
 
         responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider == "anywhere") {
-          // Anywhere processing
-          if (!this.anywhereClient) {
+      } else if (config.apiProvider == "siliconflow") {
+          // Siliconflow processing
+          if (!this.siliconflowClient) {
           return {
             success: false,
-            error: "Anywhere API key not configured. Please check your settings."
+            error: "Siliconflow API key not configured. Please check your settings."
           };
         }
         
         // Send to OpenAI API
-        const solutionResponse = await this.anywhereClient.chat.completions.create({
-          model: config.solutionModel || "deepseek-r1",
+        const solutionResponse = await this.siliconflowClient.chat.completions.create({
+          model: config.solutionModel || "Qwen2.5-7B-Instruct",
           messages: [
             { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
             { role: "user", content: promptText }
@@ -1173,8 +1173,8 @@ If you include code examples, use proper markdown code blocks with language spec
         });
 
         debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "anywhere") {
-        if (!this.anywhereClient) {
+      } else if (config.apiProvider === "siliconflow") {
+        if (!this.siliconflowClient) {
           return {
             success: false,
             error: "OpenAI API key not configured. Please check your settings."
@@ -1230,8 +1230,8 @@ If you include code examples, use proper markdown code blocks with language spec
           });
         }
 
-        const debugResponse = await this.anywhereClient.chat.completions.create({
-          model: config.debuggingModel || "deepseek-r1",
+        const debugResponse = await this.siliconflowClient.chat.completions.create({
+          model: config.debuggingModel || "Qwen2.5-7B-Instruct",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
