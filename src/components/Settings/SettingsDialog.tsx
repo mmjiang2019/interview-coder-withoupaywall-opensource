@@ -403,7 +403,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   />
                   <div className="flex flex-col">
                     <p className="font-medium text-white text-sm">Siliconflow</p>
-                    <p className="text-xs text-white/60">GPT-4o models</p>
+                    <p className="text-xs text-white/60">Mixed models</p>
                   </div>
                 </div>
               </div>
@@ -493,11 +493,11 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               ) : apiProvider === "siliconflow" ? (
                 <>
                   <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
-                    onClick={() => openExternalLink('https://github.com/')} 
+                    onClick={() => openExternalLink('https://cloud.siliconflow.cn/')} 
                     className="text-blue-400 hover:underline cursor-pointer">OpenAI</button>
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to <button 
-                    onClick={() => openExternalLink('https://github.com/mmjiang2019/interview-coder-withoupaywall-opensource')} 
+                    onClick={() => openExternalLink('https://cloud.siliconflow.cn/account/ak')} 
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>

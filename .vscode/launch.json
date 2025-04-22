@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "chrome",
+        "request": "launch",
+        "name": "Launch Electron App",
+        "url": "http://localhost:54321",
+        "webRoot": "${workspaceFolder}/src",
+        "preLaunchTask": "start-dev"
+      },
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "Electron: Main",
+        "program": "${workspaceFolder}/dist-electron/main.js",
+        "args": ["."],
+        "cwd": "${workspaceFolder}",
+        "preLaunchTask": "start-dev",
+        "sourceMaps": true,
+        "outFiles": ["${workspaceFolder}/dist-electron/**/*.js"],
+        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+        "windows": {
+          "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+        }
+      }
+    ]
+  }

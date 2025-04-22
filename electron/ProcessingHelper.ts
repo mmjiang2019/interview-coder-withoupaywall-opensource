@@ -573,6 +573,13 @@ export class ProcessingHelper {
         ];
 
         // Send to Siliconflow Vision API
+        
+        // 循环打印message对象
+        // for (const message of messages) {
+        //   console.log("Message:", message);
+        // }
+
+        // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
         const extractionResponse = await this.siliconflowClient.chat.completions.create({
           model: config.extractionModel || "Qwen2.5-7B-Instruct",
           messages: messages,

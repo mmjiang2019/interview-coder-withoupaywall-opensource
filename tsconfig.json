@@ -17,7 +17,8 @@
     "allowJs": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "sourceMap": true,
   },
   "include": ["electron/**/*", "src/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
