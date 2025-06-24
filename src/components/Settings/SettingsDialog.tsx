@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { Settings } from "lucide-react";
 import { useToast } from "../../contexts/toast";
 
-type APIProvider = "openai" | "gemini" | "anthropic" | "siliconflow";
+type APIProvider = "openai" | "gemini" | "anthropic" | "ollama";
 
 type AIModel = {
   id: string;
@@ -28,7 +28,7 @@ type ModelCategory = {
   openaiModels: AIModel[];
   geminiModels: AIModel[];
   anthropicModels: AIModel[];
-  siliconflowModels: AIModel[];
+  ollamaModels: AIModel[];
 };
 
 // Define available models for each category
@@ -78,16 +78,16 @@ const modelCategories: ModelCategory[] = [
         description: "Top-level intelligence, fluency, and understanding"
       }
     ],
-    siliconflowModels: [
+    ollamaModels: [
       {
-        id: "DeepSeek-R1-Distill-Qwen-7B",
-        name: "DeepSeek-R1-Distill-Qwen-7B",
-        description: "Best overall performance for problem extraction"
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Faster, more cost-effective option"
       },
       {
-        id: "Qwen2.5-7B-Instruct",
-        name: "Qwen2.5-7B-Instruct",
-        description: "Faster, more cost-effective option"
+        id: "qwen2.5vl:3b",
+        name: "qwen2.5vl:3b",
+        description: "Best overall performance for problem extraction"
       }
     ]
   },
@@ -136,16 +136,16 @@ const modelCategories: ModelCategory[] = [
         description: "Top-level intelligence, fluency, and understanding"
       }
     ],
-    siliconflowModels: [
+    ollamaModels: [
       {
-        id: "DeepSeek-R1-Distill-Qwen-7B",
-        name: "DeepSeek-R1-Distill-Qwen-7B",
-        description: "Best overall performance for problem extraction"
+        id: "qwen2.5-coder:3b",
+        name: "qwen2.5-coder:3b",
+        description: "Strong overall performance for coding tasks"
       },
       {
-        id: "Qwen2.5-7B-Instruct",
-        name: "Qwen2.5-7B-Instruct",
-        description: "Faster, more cost-effective option"
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Balanced performance and speed"
       }
     ]
   },
@@ -194,16 +194,16 @@ const modelCategories: ModelCategory[] = [
         description: "Top-level intelligence, fluency, and understanding"
       }
     ],
-    siliconflowModels: [
+    ollamaModels: [
       {
-        id: "DeepSeek-R1-Distill-Qwen-7B",
-        name: "DeepSeek-R1-Distill-Qwen-7B",
-        description: "Best overall performance for problem extraction"
+        id: "qwen2.5-coder:3b",
+        name: "qwen2.5-coder:3b",
+        description: "Strong overall performance for coding tasks"
       },
       {
-        id: "Qwen2.5-7B-Instruct",
-        name: "Qwen2.5-7B-Instruct",
-        description: "Faster, more cost-effective option"
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Balanced performance and speed"
       }
     ]
   }
@@ -288,10 +288,10 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setExtractionModel("claude-3-7-sonnet-20250219");
       setSolutionModel("claude-3-7-sonnet-20250219");
       setDebuggingModel("claude-3-7-sonnet-20250219");
-    } else if (provider === "siliconflow") {
-      setExtractionModel("Qwen2.5-7B-Instruct");
-      setSolutionModel("Qwen2.5-7B-Instruct");
-      setDebuggingModel("Qwen2.5-7B-Instruct");
+    } else if (provider === "ollama") {
+      setExtractionModel("qwen2.5vl:3b");
+      setSolutionModel("qwen2.5-it:3b");
+      setDebuggingModel("qwen2.5-it:3b");
     }
   };
 
@@ -389,20 +389,20 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               </div>
               <div
                 className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "siliconflow"
+                  apiProvider === "ollama"
                     ? "bg-white/10 border border-white/20"
                     : "bg-black/30 border border-white/5 hover:bg-white/5"
                 }`}
-                onClick={() => handleProviderChange("siliconflow")}
+                onClick={() => handleProviderChange("ollama")}
               >
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
-                      apiProvider === "siliconflow" ? "bg-white" : "bg-white/20"
+                      apiProvider === "ollama" ? "bg-white" : "bg-white/20"
                     }`}
                   />
                   <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Siliconflow</p>
+                    <p className="font-medium text-white text-sm">Ollama</p>
                     <p className="text-xs text-white/60">Mixed models</p>
                   </div>
                 </div>
@@ -454,6 +454,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             <label className="text-sm font-medium text-white" htmlFor="apiKey">
             {apiProvider === "openai" ? "OpenAI API Key" : 
              apiProvider === "gemini" ? "Gemini API Key" : 
+             apiProvider === "ollama" ? "Ollama API Key" : 
              "Anthropic API Key"}
             </label>
             <Input
@@ -490,14 +491,14 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
                 </>
-              ) : apiProvider === "siliconflow" ? (
+              ) : apiProvider === "ollama" ? (
                 <>
                   <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
-                    onClick={() => openExternalLink('https://cloud.siliconflow.cn/')} 
+                    onClick={() => openExternalLink('https://ollama.com/signin')}
                     className="text-blue-400 hover:underline cursor-pointer">OpenAI</button>
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to <button 
-                    onClick={() => openExternalLink('https://cloud.siliconflow.cn/account/ak')} 
+                    onClick={() => openExternalLink('https://ollama.com')}
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
@@ -505,11 +506,11 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               ) : apiProvider === "gemini" ?  (
                 <>
                   <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
-                    onClick={() => openExternalLink('https://aistudio.google.com/')} 
+                    onClick={() => openExternalLink('https://aistudio.google.com/')}
                     className="text-blue-400 hover:underline cursor-pointer">Google AI Studio</button>
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to the <button 
-                    onClick={() => openExternalLink('https://aistudio.google.com/app/apikey')} 
+                    onClick={() => openExternalLink('https://aistudio.google.com/app/apikey')}
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new API key and paste it here</p>
@@ -517,11 +518,11 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               ) : (
                 <>
                   <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
-                    onClick={() => openExternalLink('https://console.anthropic.com/signup')} 
+                    onClick={() => openExternalLink('https://console.anthropic.com/signup')}
                     className="text-blue-400 hover:underline cursor-pointer">Anthropic</button>
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to the <button 
-                    onClick={() => openExternalLink('https://console.anthropic.com/settings/keys')} 
+                    onClick={() => openExternalLink('https://console.anthropic.com/settings/keys')}
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new API key and paste it here</p>
@@ -584,7 +585,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               const models = 
                 apiProvider === "openai" ? category.openaiModels : 
                 apiProvider === "gemini" ? category.geminiModels :
-                apiProvider === "siliconflow" ? category.siliconflowModels : 
+                apiProvider === "ollama" ? category.ollamaModels :
                 category.anthropicModels;
               
               return (

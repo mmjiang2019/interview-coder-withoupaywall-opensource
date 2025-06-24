@@ -7,7 +7,7 @@ import { OpenAI } from "openai"
 
 interface Config {
   apiKey: string;
-  apiProvider: "openai" | "gemini" | "anthropic" | "siliconflow";  // Added provider selection
+  apiProvider: "openai" | "gemini" | "anthropic" | "ollama";  // Added provider selection
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
@@ -58,7 +58,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate and sanitize model selection to ensure only allowed models are used
    */
-  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "siliconflow"): string {
+  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "ollama"): string {
     if (provider === "openai") {
       // Only allow gpt-4o and gpt-4o-mini for OpenAI
       const allowedModels = ['gpt-4o', 'gpt-4o-mini'];
@@ -83,14 +83,14 @@ export class ConfigHelper extends EventEmitter {
         return 'claude-3-7-sonnet-20250219';
       }
       return model;
-    } else if (provider === "siliconflow") {
-      // Only allow siliconflow models
+    } else if (provider === "ollama") {
+      // Only allow ollama models
       const allowedModels = [
-        'Qwen2.5-7B-Instruct', 'DeepSeek-R1-Distill-Qwen-7B' // free
+        'qwen2.5-it:3b', 'qwen2.5vl:3b' // free
       ];
       if (!allowedModels.includes(model)) {
-        console.warn(`Invalid Siliconflow model specified: ${model}. Using default model: Qwen2.5-7B-Instruct`);
-        return 'Qwen2.5-7B-Instruct';
+        console.warn(`Invalid Ollama model specified: ${model}. Using default model: qwen2.5-it:3b`);
+        return 'qwen2.5-it:3b';
       }
       return model;
     }
@@ -105,7 +105,7 @@ export class ConfigHelper extends EventEmitter {
         const config = JSON.parse(configData);
         
         // Ensure apiProvider is a valid value
-        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "siliconflow") {
+        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "ollama") {
           config.apiProvider = "gemini"; // Default to Gemini if invalid
         }
         
@@ -192,10 +192,14 @@ export class ConfigHelper extends EventEmitter {
           updates.extractionModel = "gemini-2.0-flash";
           updates.solutionModel = "gemini-2.0-flash";
           updates.debuggingModel = "gemini-2.0-flash";
+        } else if (updates.apiProvider === "ollama") {
+          updates.extractionModel = "gemini-2.0-flash";
+          updates.solutionModel = "gemini-2.0-flash";
+          updates.debuggingModel = "gemini-2.0-flash";
         } else {
-          updates.extractionModel = "Qwen2.5-7B-Instruct";
-          updates.solutionModel = "Qwen2.5-7B-Instruct";
-          updates.debuggingModel = "Qwen2.5-7B-Instruct";
+          updates.extractionModel = "qwen2.5vl:3b";
+          updates.solutionModel = "qwen2.5-it:3b";
+          updates.debuggingModel = "qwen2.5-it:3b";
         }
       }
       
@@ -239,15 +243,15 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate the API key format
    */
-  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "siliconflow"): boolean {
+  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama"): boolean {
     // If provider is not specified, attempt to auto-detect
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
         if (apiKey.trim().startsWith('sk-ant-')) {
           provider = "anthropic";
         } else {
-          if (apiKey.trim().substring(3).length >= 48) {
-            provider = "siliconflow";
+          if (apiKey.trim() == "ollama") {
+            provider = "ollama";
           } else {
             provider = "openai";
           }
@@ -266,9 +270,9 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "anthropic") {
       // Basic format validation for Anthropic API keys
       return /^sk-ant-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
-    } else if (provider === "siliconflow") {
-      // Basic format validation for Siliconflow API keys
-      return /^sk-[a-zA-Z0-9]{48,}$/.test(apiKey.trim());
+    } else if (provider === "ollama") {
+      // Basic format validation for Ollama API keys
+      return true;
     }
     
     return false;
@@ -309,7 +313,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test API key with the selected provider
    */
-  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "siliconflow"): Promise<{valid: boolean, error?: string}> {
+  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama"): Promise<{valid: boolean, error?: string}> {
     // Auto-detect provider based on key format if not specified
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -318,8 +322,8 @@ export class ConfigHelper extends EventEmitter {
           console.log("Auto-detected Anthropic API key format for testing");
         } else {
           if (apiKey.trim().substring(3).length >= 48) {
-            provider = "siliconflow";
-            console.log("Auto-detected Siliconflow API key format for testing");
+            provider = "ollama";
+            console.log("Auto-detected Ollama API key format for testing");
           } else {
             provider = "openai";
             console.log("Auto-detected OpenAI API key format for testing");
@@ -337,8 +341,8 @@ export class ConfigHelper extends EventEmitter {
       return this.testGeminiKey(apiKey);
     } else if (provider === "anthropic") {
       return this.testAnthropicKey(apiKey);
-    } else if (provider === "siliconflow") {
-      return this.testSiliconflowKey(apiKey);
+    } else if (provider === "ollama") {
+      return this.testOllamaKeyKey(apiKey);
     }
     
     return { valid: false, error: "Unknown API provider" };
@@ -424,30 +428,30 @@ export class ConfigHelper extends EventEmitter {
   }
 
     /**
-   * Test Siliconflow API key
-   * Note: This is a simplified implementation since we don't have the actual siliconflow client
+   * Test Ollama API key
+   * Note: This is a simplified implementation since we don't have the actual ollama client
    */
-    private async testSiliconflowKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+    private async testOllamaKeyKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
       try {
         const openai = new OpenAI({ 
           apiKey,
-          baseURL: 'https://api.siliconflow.cn/v1'
+          baseURL: 'http://127.0.0.1:11434/v1'
          });
         // Make a simple API call to test the key
         await openai.models.list();
         return { valid: true };
       } catch (error: any) {
-        console.error('Siliconflow AI API key test failed:', error);
+        console.error('Ollama AI API key test failed:', error);
         
         // Determine the specific error type for better error messages
-        let errorMessage = 'Unknown error validating Siliconflow API key';
+        let errorMessage = 'Unknown error validating Ollama API key';
         
         if (error.status === 401) {
-          errorMessage = 'Invalid API key. Please check your Siliconflow AI key and try again.';
+          errorMessage = 'Invalid API key. Please check your Ollama AI key and try again.';
         } else if (error.status === 429) {
-          errorMessage = 'Rate limit exceeded. Your Siliconflow AI API key has reached its request limit or has insufficient quota.';
+          errorMessage = 'Rate limit exceeded. Your Ollama AI API key has reached its request limit or has insufficient quota.';
         } else if (error.status === 500) {
-          errorMessage = 'Siliconflow server error. Please try again later.';
+          errorMessage = 'Ollama server error. Please try again later.';
         } else if (error.message) {
           errorMessage = `Error: ${error.message}`;
         }

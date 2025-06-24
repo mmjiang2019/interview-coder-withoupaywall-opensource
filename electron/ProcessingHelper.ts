@@ -50,7 +50,7 @@ export class ProcessingHelper {
   private openaiClient: OpenAI | null = null
   private geminiApiKey: string | null = null
   private anthropicClient: Anthropic | null = null
-  private siliconflowClient: OpenAI | null = null // TODO: fix me for siliconflow
+  private ollamaClient: OpenAI | null = null // TODO: fix me for ollama
 
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
@@ -79,7 +79,7 @@ export class ProcessingHelper {
       if (config.apiProvider === "openai") {
         this.geminiApiKey = null;
         this.anthropicClient = null;
-        this.siliconflowClient = null;
+        this.ollamaClient = null;
       if (config.apiKey) {
           this.openaiClient = new OpenAI({ 
             apiKey: config.apiKey,
@@ -95,7 +95,7 @@ export class ProcessingHelper {
         // Gemini client initialization
         this.openaiClient = null;
         this.anthropicClient = null;
-        this.siliconflowClient = null;
+        this.ollamaClient = null;
         if (config.apiKey) {
           this.geminiApiKey = config.apiKey;
           console.log("Gemini API key set successfully");
@@ -107,7 +107,7 @@ export class ProcessingHelper {
         // Reset other clients
         this.openaiClient = null;
         this.geminiApiKey = null;
-        this.siliconflowClient = null;
+        this.ollamaClient = null;
         if (config.apiKey) {
           this.anthropicClient = new Anthropic({
             apiKey: config.apiKey,
@@ -119,20 +119,20 @@ export class ProcessingHelper {
           this.anthropicClient = null;
           console.warn("No API key available, Anthropic client not initialized");
         }
-      } else if (config.apiProvider === "siliconflow") {
-        // Siliconflow client initialization
+      } else if (config.apiProvider === "ollama") {
+        // Ollama client initialization
         this.openaiClient = null;
         this.geminiApiKey = null;
         this.anthropicClient = null;
-        this.siliconflowClient = new OpenAI({ 
+        this.ollamaClient = new OpenAI({
           apiKey: config.apiKey,
-          baseURL: "https://api.siliconflow.cn/v1", // Set the base URL for Siliconflow API
+          baseURL: "http://127.0.0.1:11434/v1", // Set the base URL for Ollama API
           timeout: 60000, // 60 second timeout
           maxRetries: 2   // Retry up to 2 times
         });
-        console.log("Siliconflow client initialized successfully");
+        console.log("Ollama client initialized successfully");
       } else {
-        this.siliconflowClient = null;
+        this.ollamaClient = null;
         console.warn("Unknown API provider, no client initialized");
       }
     } catch (error) {
@@ -246,12 +246,12 @@ export class ProcessingHelper {
         );
         return;
       }
-    } else if (config.apiProvider === "siliconflow" && !this.siliconflowClient) {
-      // Add check for Siliconflow client
+    } else if (config.apiProvider === "ollama" && !this.ollamaClient) {
+      // Add check for Ollama client
       this.initializeAIClient();
       
-      if (!this.siliconflowClient) {
-        console.error("Siliconflow client not initialized");
+      if (!this.ollamaClient) {
+        console.error("Ollama client not initialized");
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.API_KEY_INVALID
         );
@@ -538,20 +538,20 @@ export class ProcessingHelper {
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
           };
         }
-      } else if (config.apiProvider === "siliconflow") {
-        // Verify Siliconflow client
-        if (!this.siliconflowClient) {
+      } else if (config.apiProvider === "ollama") {
+        // Verify Ollama client
+        if (!this.ollamaClient) {
           this.initializeAIClient(); // Try to reinitialize
           
-          if (!this.siliconflowClient) {
+          if (!this.ollamaClient) {
             return {
               success: false,
-              error: "Siliconflow API key not configured or invalid. Please check your settings."
+              error: "Ollama API key not configured or invalid. Please check your settings."
             };
           }
         }
 
-        // Use Siliconflow for processing
+        // Use Ollama for processing
         const messages = [
           {
             role: "system" as const, 
@@ -572,7 +572,7 @@ export class ProcessingHelper {
           }
         ];
 
-        // Send to Siliconflow Vision API
+        // Send to Ollama Vision API
         
         // 循环打印message对象
         // for (const message of messages) {
@@ -580,8 +580,8 @@ export class ProcessingHelper {
         // }
 
         // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
-        const extractionResponse = await this.siliconflowClient.chat.completions.create({
-          model: config.extractionModel || "Qwen2.5-7B-Instruct",
+        const extractionResponse = await this.ollamaClient.chat.completions.create({
+          model: config.extractionModel || "qwen2.5vl:3b",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -594,7 +594,7 @@ export class ProcessingHelper {
           const jsonText = responseText.replace(/```json|```/g, '').trim();
           problemInfo = JSON.parse(jsonText);
         } catch (error) {
-          console.error("Error parsing Siliconflow response:", error);
+          console.error("Error parsing Ollama response:", error);
           return {
             success: false,
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
@@ -870,18 +870,18 @@ Your solution should be efficient, well-commented, and handle edge cases.
         });
 
         responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider == "siliconflow") {
-          // Siliconflow processing
-          if (!this.siliconflowClient) {
+      } else if (config.apiProvider == "ollama") {
+          // Ollama processing
+          if (!this.ollamaClient) {
           return {
             success: false,
-            error: "Siliconflow API key not configured. Please check your settings."
+            error: "Ollama API key not configured. Please check your settings."
           };
         }
         
         // Send to OpenAI API
-        const solutionResponse = await this.siliconflowClient.chat.completions.create({
-          model: config.solutionModel || "Qwen2.5-7B-Instruct",
+        const solutionResponse = await this.ollamaClient.chat.completions.create({
+          model: config.solutionModel || "qwen2.5-it:3b",
           messages: [
             { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
             { role: "user", content: promptText }
@@ -1180,8 +1180,8 @@ If you include code examples, use proper markdown code blocks with language spec
         });
 
         debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "siliconflow") {
-        if (!this.siliconflowClient) {
+      } else if (config.apiProvider === "ollama") {
+        if (!this.ollamaClient) {
           return {
             success: false,
             error: "OpenAI API key not configured. Please check your settings."
@@ -1237,8 +1237,8 @@ If you include code examples, use proper markdown code blocks with language spec
           });
         }
 
-        const debugResponse = await this.siliconflowClient.chat.completions.create({
-          model: config.debuggingModel || "Qwen2.5-7B-Instruct",
+        const debugResponse = await this.ollamaClient.chat.completions.create({
+          model: config.debuggingModel || "qwen2.5vl:3b",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
