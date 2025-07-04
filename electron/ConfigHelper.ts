@@ -7,7 +7,7 @@ import { OpenAI } from "openai"
 
 interface Config {
   apiKey: string;
-  apiProvider: "openai" | "gemini" | "anthropic" | "ollama";  // Added provider selection
+  apiProvider: "openai" | "gemini" | "anthropic" | "ollama" | "bytedance";  // Added provider selection
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
@@ -23,7 +23,7 @@ export class ConfigHelper extends EventEmitter {
     extractionModel: "gemini-2.0-flash", // Default to Flash for faster responses
     solutionModel: "gemini-2.0-flash",
     debuggingModel: "gemini-2.0-flash",
-    language: "python",
+    language: "golang",
     opacity: 1.0
   };
 
@@ -58,7 +58,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate and sanitize model selection to ensure only allowed models are used
    */
-  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "ollama"): string {
+  private sanitizeModelSelection(model: string, provider: "openai" | "gemini" | "anthropic" | "ollama" | "bytedance"): string {
     if (provider === "openai") {
       // Only allow gpt-4o and gpt-4o-mini for OpenAI
       const allowedModels = ['gpt-4o', 'gpt-4o-mini'];
@@ -86,11 +86,21 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "ollama") {
       // Only allow ollama models
       const allowedModels = [
-        'qwen2.5-it:3b', 'qwen2.5vl:3b' // free
+        'gemma3:4b', 'qwen2.5-it:3b', 'qwen3:1.7b' // free
       ];
       if (!allowedModels.includes(model)) {
         console.warn(`Invalid Ollama model specified: ${model}. Using default model: qwen2.5-it:3b`);
         return 'qwen2.5-it:3b';
+      }
+      return model;
+    } else if (provider === "bytedance") {
+      // Only allow Bytedance models
+      const allowedModels = [
+        'doubao-seed-1.6-250615', 'doubao-seed-1-6-flash-250615', 'doubao-1-5-thinking-vision-pro-250428'
+      ];
+      if (!allowedModels.includes(model)) {
+        console.warn(`Invalid Bytedance model specified: ${model}. Using default model: qwen1.5-it:3b`);
+        return 'qwen1.5-it:3b';
       }
       return model;
     }
@@ -105,7 +115,8 @@ export class ConfigHelper extends EventEmitter {
         const config = JSON.parse(configData);
         
         // Ensure apiProvider is a valid value
-        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && config.apiProvider !== "ollama") {
+        if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && 
+          config.apiProvider !== "ollama" && config.apiProvider !== "bytedance") {
           config.apiProvider = "gemini"; // Default to Gemini if invalid
         }
         
@@ -193,11 +204,15 @@ export class ConfigHelper extends EventEmitter {
           updates.solutionModel = "gemini-2.0-flash";
           updates.debuggingModel = "gemini-2.0-flash";
         } else if (updates.apiProvider === "ollama") {
-          updates.extractionModel = "gemini-2.0-flash";
-          updates.solutionModel = "gemini-2.0-flash";
-          updates.debuggingModel = "gemini-2.0-flash";
+          updates.extractionModel = "qwen2.5-it:3b";
+          updates.solutionModel = "qwen3:1.7b";
+          updates.debuggingModel = "qwen3:1.7b";
+        } else if (updates.apiProvider === "bytedance") {
+          updates.extractionModel = "doubao-seed-1-6-flash-250615";
+          updates.solutionModel = "doubao-seed-1-6-flash-250615";
+          updates.debuggingModel = "doubao-seed-1-6-flash-250615";
         } else {
-          updates.extractionModel = "qwen2.5vl:3b";
+          updates.extractionModel = "qwen2.5-it:3b";
           updates.solutionModel = "qwen2.5-it:3b";
           updates.debuggingModel = "qwen2.5-it:3b";
         }
@@ -243,21 +258,21 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate the API key format
    */
-  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama"): boolean {
+  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama" | "bytedance"): boolean {
     // If provider is not specified, attempt to auto-detect
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
         if (apiKey.trim().startsWith('sk-ant-')) {
           provider = "anthropic";
         } else {
-          if (apiKey.trim() == "ollama") {
-            provider = "ollama";
-          } else {
-            provider = "openai";
-          }
+          provider = "openai";
         }
-      } else {
+      } else if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(apiKey.trim())) {
+        provider = "bytedance";
+      } else if (apiKey.trim().length == 39) {
         provider = "gemini";
+      } else {
+        provider = "ollama";
       }
     }
     
@@ -266,15 +281,18 @@ export class ConfigHelper extends EventEmitter {
       return /^sk-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
     } else if (provider === "gemini") {
       // Basic format validation for Gemini API keys (usually alphanumeric with no specific prefix)
-      return apiKey.trim().length >= 10; // Assuming Gemini keys are at least 10 chars
+      return apiKey.trim().length == 39; // Assuming Gemini keys are at least 10 chars
     } else if (provider === "anthropic") {
       // Basic format validation for Anthropic API keys
       return /^sk-ant-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
     } else if (provider === "ollama") {
       // Basic format validation for Ollama API keys
       return true;
+    } else if (provider === "bytedance") {
+      // Basic format validation for Bytedance API keys
+      return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(apiKey.trim());
     }
-    
+
     return false;
   }
   
@@ -313,7 +331,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test API key with the selected provider
    */
-  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama"): Promise<{valid: boolean, error?: string}> {
+  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic" | "ollama" | "bytedance"): Promise<{valid: boolean, error?: string}> {
     // Auto-detect provider based on key format if not specified
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -321,17 +339,18 @@ export class ConfigHelper extends EventEmitter {
           provider = "anthropic";
           console.log("Auto-detected Anthropic API key format for testing");
         } else {
-          if (apiKey.trim().substring(3).length >= 48) {
-            provider = "ollama";
-            console.log("Auto-detected Ollama API key format for testing");
-          } else {
             provider = "openai";
             console.log("Auto-detected OpenAI API key format for testing");
-          }
         }
-      } else {
+      } else if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(apiKey.trim())) {
+        provider = "bytedance";
+        console.log("Using ByteDance API key format for testing");
+      } else if (apiKey.trim().length == 39) {
         provider = "gemini";
         console.log("Using Gemini API key format for testing (default)");
+      } else {
+        provider = "ollama";
+        console.log("Using Ollama API key format for testing");
       }
     }
     
@@ -342,7 +361,9 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "anthropic") {
       return this.testAnthropicKey(apiKey);
     } else if (provider === "ollama") {
-      return this.testOllamaKeyKey(apiKey);
+      return this.testOllamaKey(apiKey);
+    } else if (provider === "bytedance") {
+      return this.testByteDanceKey(apiKey);
     }
     
     return { valid: false, error: "Unknown API provider" };
@@ -431,11 +452,11 @@ export class ConfigHelper extends EventEmitter {
    * Test Ollama API key
    * Note: This is a simplified implementation since we don't have the actual ollama client
    */
-    private async testOllamaKeyKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+  private async testOllamaKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
       try {
         const openai = new OpenAI({ 
           apiKey,
-          baseURL: 'http://127.0.0.1:11434/v1'
+          baseURL: 'http://192.168.1.13:11434/v1'
          });
         // Make a simple API call to test the key
         await openai.models.list();
@@ -458,6 +479,35 @@ export class ConfigHelper extends EventEmitter {
         
         return { valid: false, error: errorMessage };
       }
+  }
+
+  private async testByteDanceKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+    try {
+      const openai = new OpenAI({ 
+        apiKey,
+        baseURL: 'http://192.168.1.13:11434/v1'
+        });
+      // Make a simple API call to test the key
+      await openai.models.list();
+      return { valid: true };
+    } catch (error: any) {
+      console.error('Bytedance AI API key test failed:', error);
+      
+      // Determine the specific error type for better error messages
+      let errorMessage = 'Unknown error validating Bytedance API key';
+      
+      if (error.status === 401) {
+        errorMessage = 'Invalid API key. Please check your Bytedance AI key and try again.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Your Bytedance AI API key has reached its request limit or has insufficient quota.';
+      } else if (error.status === 500) {
+        errorMessage = 'Bytedance server error. Please try again later.';
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      return { valid: false, error: errorMessage };
+    }
   }
 }
 

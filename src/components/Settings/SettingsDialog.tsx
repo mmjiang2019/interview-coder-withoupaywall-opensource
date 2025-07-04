@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { Settings } from "lucide-react";
 import { useToast } from "../../contexts/toast";
 
-type APIProvider = "openai" | "gemini" | "anthropic" | "ollama";
+type APIProvider = "openai" | "gemini" | "anthropic" | "ollama" | "bytedance";
 
 type AIModel = {
   id: string;
@@ -29,6 +29,7 @@ type ModelCategory = {
   geminiModels: AIModel[];
   anthropicModels: AIModel[];
   ollamaModels: AIModel[];
+  byteDanceModels: AIModel[];
 };
 
 // Define available models for each category
@@ -80,13 +81,45 @@ const modelCategories: ModelCategory[] = [
     ],
     ollamaModels: [
       {
-        id: "qwen2.5-it:3b",
-        name: "qwen2.5-it:3b",
+        id: "qwen2.5-coder:3b",
+        name: "qwen2.5-coder:3b",
+        description: "Strong overall performance for coding tasks"
+      },
+      {
+        id: "qwen3:1.7b",
+        name: "qwen3:1.7b",
         description: "Faster, more cost-effective option"
       },
       {
-        id: "qwen2.5vl:3b",
-        name: "qwen2.5vl:3b",
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "gemma3:4b",
+        name: "gemma3:4b",
+        description: "Best overall performance for problem extraction"
+      }
+    ],
+    byteDanceModels: [
+      {
+        id: "doubao-seed-1-6-flash-250615",
+        name: "doubao-seed-1-6-flash-250615",
+        description: "Strong overall performance for coding tasks"
+      },
+      {
+        id: "doubao-seed-1-6-250615",
+        name: "doubao-seed-1-6-250615",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "doubao-1-5-thinking-vision-pro-250428",
+        name: "doubao-1-5-thinking-vision-pro-250428",
         description: "Best overall performance for problem extraction"
       }
     ]
@@ -143,9 +176,41 @@ const modelCategories: ModelCategory[] = [
         description: "Strong overall performance for coding tasks"
       },
       {
+        id: "qwen3:1.7b",
+        name: "qwen3:1.7b",
+        description: "Faster, more cost-effective option"
+      },
+      {
         id: "qwen2.5-it:3b",
         name: "qwen2.5-it:3b",
         description: "Balanced performance and speed"
+      },
+      {
+        id: "gemma3:4b",
+        name: "gemma3:4b",
+        description: "Balanced performance and speed"
+      }
+    ],
+    byteDanceModels: [
+      {
+        id: "doubao-seed-1-6-flash-250615",
+        name: "doubao-seed-1-6-flash-250615",
+        description: "Strong overall performance for coding tasks"
+      },
+      {
+        id: "doubao-seed-1-6-250615",
+        name: "doubao-seed-1-6-250615",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "doubao-1-5-thinking-vision-pro-250428",
+        name: "doubao-1-5-thinking-vision-pro-250428",
+        description: "Best overall performance for problem extraction"
       }
     ]
   },
@@ -201,9 +266,41 @@ const modelCategories: ModelCategory[] = [
         description: "Strong overall performance for coding tasks"
       },
       {
+        id: "qwen3:1.7b",
+        name: "qwen3:1.7b",
+        description: "Faster, more cost-effective option"
+      },
+      {
         id: "qwen2.5-it:3b",
         name: "qwen2.5-it:3b",
         description: "Balanced performance and speed"
+      },
+      {
+        id: "gemma3:4b",
+        name: "gemma3:4b",
+        description: "Balanced performance and speed"
+      }
+    ],
+    byteDanceModels: [
+      {
+        id: "doubao-seed-1-6-flash-250615",
+        name: "doubao-seed-1-6-flash-250615",
+        description: "Strong overall performance for coding tasks"
+      },
+      {
+        id: "doubao-seed-1-6-250615",
+        name: "doubao-seed-1-6-250615",
+        description: "Faster, more cost-effective option"
+      },
+      {
+        id: "qwen2.5-it:3b",
+        name: "qwen2.5-it:3b",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "doubao-1-5-thinking-vision-pro-250428",
+        name: "doubao-1-5-thinking-vision-pro-250428",
+        description: "Best overall performance for problem extraction"
       }
     ]
   }
@@ -289,9 +386,13 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setSolutionModel("claude-3-7-sonnet-20250219");
       setDebuggingModel("claude-3-7-sonnet-20250219");
     } else if (provider === "ollama") {
-      setExtractionModel("qwen2.5vl:3b");
+      setExtractionModel("qwen2.5-it:3b");
       setSolutionModel("qwen2.5-it:3b");
       setDebuggingModel("qwen2.5-it:3b");
+    } else if (provider === "bytedance") {
+      setExtractionModel("doubao-seed-1-6-flash-250615");
+      setSolutionModel("doubao-seed-1-6-flash-250615");
+      setDebuggingModel("doubao-seed-1-6-flash-250615");    
     }
   };
 
@@ -409,6 +510,26 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               </div>
               <div
                 className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
+                  apiProvider === "bytedance"
+                    ? "bg-white/10 border border-white/20"
+                    : "bg-black/30 border border-white/5 hover:bg-white/5"
+                }`}
+                onClick={() => handleProviderChange("bytedance")}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      apiProvider === "bytedance" ? "bg-white" : "bg-white/20"
+                    }`}
+                  />
+                  <div className="flex flex-col">
+                    <p className="font-medium text-white text-sm">Bytedance</p>
+                    <p className="text-xs text-white/60">Mixed models</p>
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
                   apiProvider === "gemini"
                     ? "bg-white/10 border border-white/20"
                     : "bg-black/30 border border-white/5 hover:bg-white/5"
@@ -455,6 +576,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             {apiProvider === "openai" ? "OpenAI API Key" : 
              apiProvider === "gemini" ? "Gemini API Key" : 
              apiProvider === "ollama" ? "Ollama API Key" : 
+             apiProvider === "bytedance" ? "Bytedance API Key" : 
              "Anthropic API Key"}
             </label>
             <Input
@@ -499,6 +621,18 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to <button 
                     onClick={() => openExternalLink('https://ollama.com')}
+                    className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
+                  </p>
+                  <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
+                </>
+              ) : apiProvider === "bytedance" ? (
+                <>
+                  <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
+                    onClick={() => openExternalLink('https://www.volcengine.com/product/ark')}
+                    className="text-blue-400 hover:underline cursor-pointer">OpenAI</button>
+                  </p>
+                  <p className="text-xs text-white/60 mb-1">2. Go to <button 
+                    onClick={() => openExternalLink('https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D')}
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
@@ -586,6 +720,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 apiProvider === "openai" ? category.openaiModels : 
                 apiProvider === "gemini" ? category.geminiModels :
                 apiProvider === "ollama" ? category.ollamaModels :
+                apiProvider === "bytedance" ? category.byteDanceModels :
                 category.anthropicModels;
               
               return (

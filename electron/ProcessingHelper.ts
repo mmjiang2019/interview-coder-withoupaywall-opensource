@@ -51,6 +51,7 @@ export class ProcessingHelper {
   private geminiApiKey: string | null = null
   private anthropicClient: Anthropic | null = null
   private ollamaClient: OpenAI | null = null // TODO: fix me for ollama
+  private bytedanceClient: OpenAI | null = null // TODO: fix me for ByteDance
 
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
@@ -80,6 +81,7 @@ export class ProcessingHelper {
         this.geminiApiKey = null;
         this.anthropicClient = null;
         this.ollamaClient = null;
+        this.bytedanceClient = null;
       if (config.apiKey) {
           this.openaiClient = new OpenAI({ 
             apiKey: config.apiKey,
@@ -96,6 +98,7 @@ export class ProcessingHelper {
         this.openaiClient = null;
         this.anthropicClient = null;
         this.ollamaClient = null;
+        this.bytedanceClient = null;
         if (config.apiKey) {
           this.geminiApiKey = config.apiKey;
           console.log("Gemini API key set successfully");
@@ -108,6 +111,7 @@ export class ProcessingHelper {
         this.openaiClient = null;
         this.geminiApiKey = null;
         this.ollamaClient = null;
+        this.bytedanceClient = null;
         if (config.apiKey) {
           this.anthropicClient = new Anthropic({
             apiKey: config.apiKey,
@@ -124,20 +128,42 @@ export class ProcessingHelper {
         this.openaiClient = null;
         this.geminiApiKey = null;
         this.anthropicClient = null;
+        this.bytedanceClient = null;
         this.ollamaClient = new OpenAI({
           apiKey: config.apiKey,
-          baseURL: "http://127.0.0.1:11434/v1", // Set the base URL for Ollama API
+          baseURL: "http://192.168.1.13:11434/v1", // Set the base URL for Ollama API
           timeout: 60000, // 60 second timeout
           maxRetries: 2   // Retry up to 2 times
         });
         console.log("Ollama client initialized successfully");
-      } else {
+      } else if (config.apiProvider === "bytedance") {
+        // ByteDance client initialization
+        this.openaiClient = null;
+        this.geminiApiKey = null;
+        this.anthropicClient = null;
         this.ollamaClient = null;
+        this.bytedanceClient = new OpenAI({
+          apiKey: config.apiKey,
+          baseURL: "https://ark.cn-beijing.volces.com/api/v3", // Set the base URL for ByteDance API
+          timeout: 60000, // 60 second timeout
+          maxRetries: 2   // Retry up to 2 times
+        });
+        console.log("ByteDance client initialized successfully");
+      } else {
+        this.openaiClient = null;
+        this.geminiApiKey = null;
+        this.anthropicClient = null;
+        this.ollamaClient = null;
+        this.bytedanceClient = null;
         console.warn("Unknown API provider, no client initialized");
       }
     } catch (error) {
       console.error("Failed to initialize AI client:", error);
-      this.anthropicClient = null;
+        this.openaiClient = null;
+        this.geminiApiKey = null;
+        this.anthropicClient = null;
+        this.ollamaClient = null;
+        this.bytedanceClient = null;
     }
   }
 
@@ -252,6 +278,17 @@ export class ProcessingHelper {
       
       if (!this.ollamaClient) {
         console.error("Ollama client not initialized");
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
+        );
+        return;
+      }
+    } else if (config.apiProvider === "bytedance" && !this.bytedanceClient) {
+      // Add check for ByteDance client
+      this.initializeAIClient();
+      
+      if (!this.bytedanceClient) {
+        console.error("ByteDance client not initialized");
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.API_KEY_INVALID
         );
@@ -581,7 +618,7 @@ export class ProcessingHelper {
 
         // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
         const extractionResponse = await this.ollamaClient.chat.completions.create({
-          model: config.extractionModel || "qwen2.5vl:3b",
+          model: config.extractionModel || "qwen2.5-it:3b",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -595,6 +632,68 @@ export class ProcessingHelper {
           problemInfo = JSON.parse(jsonText);
         } catch (error) {
           console.error("Error parsing Ollama response:", error);
+          return {
+            success: false,
+            error: "Failed to parse problem information. Please try again or use clearer screenshots."
+          };
+        }
+      } else if (config.apiProvider === "bytedance") {
+        // Verify ByteDance client
+        if (!this.bytedanceClient) {
+          this.initializeAIClient(); // Try to reinitialize
+          
+          if (!this.bytedanceClient) {
+            return {
+              success: false,
+              error: "ByteDance API key not configured or invalid. Please check your settings."
+            };
+          }
+        }
+
+        // Use ByteDance for processing
+        const messages = [
+          {
+            role: "system" as const, 
+            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
+          },
+          {
+            role: "user" as const,
+            content: [
+              {
+                type: "text" as const, 
+                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
+              },
+              ...imageDataList.map(data => ({
+                type: "image_url" as const,
+                image_url: { url: `data:image/png;base64,${data}` }
+              }))
+            ]
+          }
+        ];
+
+        // Send to ByteDance Vision API
+        
+        // 循环打印message对象
+        // for (const message of messages) {
+        //   console.log("Message:", message);
+        // }
+
+        // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
+        const extractionResponse = await this.bytedanceClient.chat.completions.create({
+          model: config.extractionModel || "doubao-seed-1-6-flash-250615",
+          messages: messages,
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+
+        // Parse the response
+        try {
+          const responseText = extractionResponse.choices[0].message.content;
+          // Handle when OpenAI might wrap the JSON in markdown code blocks
+          const jsonText = responseText.replace(/```json|```/g, '').trim();
+          problemInfo = JSON.parse(jsonText);
+        } catch (error) {
+          console.error("Error parsing ByteDance response:", error);
           return {
             success: false,
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
@@ -882,6 +981,27 @@ Your solution should be efficient, well-commented, and handle edge cases.
         // Send to OpenAI API
         const solutionResponse = await this.ollamaClient.chat.completions.create({
           model: config.solutionModel || "qwen2.5-it:3b",
+          messages: [
+            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
+            { role: "user", content: promptText }
+          ],
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+
+        responseContent = solutionResponse.choices[0].message.content;
+      } else if (config.apiProvider == "bytedance") {
+          // ByteDance processing
+          if (!this.bytedanceClient) {
+          return {
+            success: false,
+            error: "ByteDance API key not configured. Please check your settings."
+          };
+        }
+        
+        // Send to OpenAI API
+        const solutionResponse = await this.bytedanceClient.chat.completions.create({
+          model: config.solutionModel || "doubao-seed-1-6-flash-250615",
           messages: [
             { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
             { role: "user", content: promptText }
@@ -1238,7 +1358,72 @@ If you include code examples, use proper markdown code blocks with language spec
         }
 
         const debugResponse = await this.ollamaClient.chat.completions.create({
-          model: config.debuggingModel || "qwen2.5vl:3b",
+          model: config.debuggingModel || "qwen2.5-it:3b",
+          messages: messages,
+          max_tokens: 4000,
+          temperature: 0.2
+        });
+        
+        debugContent = debugResponse.choices[0].message.content;
+      } else if (config.apiProvider === "bytedance") {
+        if (!this.bytedanceClient) {
+          return {
+            success: false,
+            error: "ByteDance API key not configured. Please check your settings."
+          };
+        }
+        
+        const messages = [
+          {
+            role: "system" as const, 
+            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+
+Your response MUST follow this exact structure with these section headers (use ### for headers):
+### Issues Identified
+- List each issue as a bullet point with clear explanation
+
+### Specific Improvements and Corrections
+- List specific code changes needed as bullet points
+
+### Optimizations
+- List any performance optimizations if applicable
+
+### Explanation of Changes Needed
+Here provide a clear explanation of why the changes are needed
+
+### Key Points
+- Summary bullet points of the most important takeaways
+
+If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+          },
+          {
+            role: "user" as const,
+            content: [
+              {
+                type: "text" as const, 
+                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
+1. What issues you found in my code
+2. Specific improvements and corrections
+3. Any optimizations that would make the solution better
+4. A clear explanation of the changes needed` 
+              },
+              ...imageDataList.map(data => ({
+                type: "image_url" as const,
+                image_url: { url: `data:image/png;base64,${data}` }
+              }))
+            ]
+          }
+        ];
+
+        if (mainWindow) {
+          mainWindow.webContents.send("processing-status", {
+            message: "Analyzing code and generating debug feedback...",
+            progress: 60
+          });
+        }
+
+        const debugResponse = await this.bytedanceClient.chat.completions.create({
+          model: config.debuggingModel || "doubao-seed-1-6-flash-250615",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
