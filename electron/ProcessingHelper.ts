@@ -126,7 +126,7 @@ export class ProcessingHelper {
         this.anthropicClient = null;
         this.ollamaClient = new OpenAI({
           apiKey: config.apiKey,
-          baseURL: "http://127.0.0.1:11434/v1", // Set the base URL for Ollama API
+          baseURL: "http://10.151.149.133:11434/v1", // Set the base URL for Ollama API
           timeout: 60000, // 60 second timeout
           maxRetries: 2   // Retry up to 2 times
         });
@@ -580,8 +580,9 @@ export class ProcessingHelper {
         // }
 
         // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
+        console.log("Sending request to siliconflow API: ", messages);
         const extractionResponse = await this.ollamaClient.chat.completions.create({
-          model: config.extractionModel || "qwen2.5vl:3b",
+          model: config.extractionModel || "gemma3:4b",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2
@@ -629,6 +630,7 @@ export class ProcessingHelper {
           ];
 
           // Make API request to Gemini
+          console.log("Sending request to Gemini API: ", geminiMessages);
           const response = await axios.default.post(
             `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
             {
@@ -1238,7 +1240,7 @@ If you include code examples, use proper markdown code blocks with language spec
         }
 
         const debugResponse = await this.ollamaClient.chat.completions.create({
-          model: config.debuggingModel || "qwen2.5vl:3b",
+          model: config.debuggingModel || "gemma3:4b",
           messages: messages,
           max_tokens: 4000,
           temperature: 0.2

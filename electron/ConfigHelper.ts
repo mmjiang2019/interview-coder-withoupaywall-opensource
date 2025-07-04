@@ -86,7 +86,7 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "ollama") {
       // Only allow ollama models
       const allowedModels = [
-        'qwen2.5-it:3b', 'qwen2.5vl:3b' // free
+        'qwen2.5-it:3b', 'gemma3:4b' // free
       ];
       if (!allowedModels.includes(model)) {
         console.warn(`Invalid Ollama model specified: ${model}. Using default model: qwen2.5-it:3b`);
@@ -197,7 +197,7 @@ export class ConfigHelper extends EventEmitter {
           updates.solutionModel = "gemini-2.0-flash";
           updates.debuggingModel = "gemini-2.0-flash";
         } else {
-          updates.extractionModel = "qwen2.5vl:3b";
+          updates.extractionModel = "gemma3:4b";
           updates.solutionModel = "qwen2.5-it:3b";
           updates.debuggingModel = "qwen2.5-it:3b";
         }
@@ -435,7 +435,7 @@ export class ConfigHelper extends EventEmitter {
       try {
         const openai = new OpenAI({ 
           apiKey,
-          baseURL: 'http://127.0.0.1:11434/v1'
+          baseURL: 'http://10.151.149.133:11434/v1'
          });
         // Make a simple API call to test the key
         await openai.models.list();

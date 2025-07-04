@@ -85,8 +85,8 @@ const modelCategories: ModelCategory[] = [
         description: "Faster, more cost-effective option"
       },
       {
-        id: "qwen2.5vl:3b",
-        name: "qwen2.5vl:3b",
+        id: "gemma3:4b",
+        name: "gemma3:4b",
         description: "Best overall performance for problem extraction"
       }
     ]
@@ -289,7 +289,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setSolutionModel("claude-3-7-sonnet-20250219");
       setDebuggingModel("claude-3-7-sonnet-20250219");
     } else if (provider === "ollama") {
-      setExtractionModel("qwen2.5vl:3b");
+      setExtractionModel("gemma3:4b");
       setSolutionModel("qwen2.5-it:3b");
       setDebuggingModel("qwen2.5-it:3b");
     }
