@@ -96,11 +96,13 @@ export class ConfigHelper extends EventEmitter {
     } else if (provider === "bytedance") {
       // Only allow Bytedance models
       const allowedModels = [
-        'doubao-seed-1.6-250615', 'doubao-seed-1-6-flash-250615', 'doubao-1-5-thinking-vision-pro-250428'
+        'doubao-seed-1.6-250615', 'doubao-seed-1-6-flash-250615', 'doubao-1-5-thinking-vision-pro-250428',
+        'deepseek-v3-250324',
+        'kimi-k2-250711',
       ];
       if (!allowedModels.includes(model)) {
-        console.warn(`Invalid Bytedance model specified: ${model}. Using default model: qwen1.5-it:3b`);
-        return 'qwen1.5-it:3b';
+        console.warn(`Invalid Bytedance model specified: ${model}. Using default model: doubao-seed-1-6-flash-250615`);
+        return 'doubao-seed-1-6-flash-250615';
       }
       return model;
     }

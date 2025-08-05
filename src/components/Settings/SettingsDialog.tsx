@@ -113,8 +113,13 @@ const modelCategories: ModelCategory[] = [
         description: "Faster, more cost-effective option"
       },
       {
-        id: "qwen2.5-it:3b",
-        name: "qwen2.5-it:3b",
+        id: "deepseek-v3-250324",
+        name: "deepseek-v3-250324",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "kimi-k2-250711",
+        name: "kimi-k2-250711",
         description: "Best overall performance for problem extraction"
       },
       {
@@ -203,8 +208,13 @@ const modelCategories: ModelCategory[] = [
         description: "Faster, more cost-effective option"
       },
       {
-        id: "qwen2.5-it:3b",
-        name: "qwen2.5-it:3b",
+        id: "deepseek-v3-250324",
+        name: "deepseek-v3-250324",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "kimi-k2-250711",
+        name: "kimi-k2-250711",
         description: "Best overall performance for problem extraction"
       },
       {
@@ -293,8 +303,13 @@ const modelCategories: ModelCategory[] = [
         description: "Faster, more cost-effective option"
       },
       {
-        id: "qwen2.5-it:3b",
-        name: "qwen2.5-it:3b",
+        id: "deepseek-v3-250324",
+        name: "deepseek-v3-250324",
+        description: "Best overall performance for problem extraction"
+      },
+      {
+        id: "kimi-k2-250711",
+        name: "kimi-k2-250711",
         description: "Best overall performance for problem extraction"
       },
       {
