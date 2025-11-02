@@ -7,6 +7,7 @@ import { ScreenshotHelper } from "./ScreenshotHelper"
 import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import { configHelper } from "./ConfigHelper"
+import { ModelProviderRegistry } from "./ModelProviderRegistry"
 import * as dotenv from "dotenv"
 
 // Constants
@@ -530,7 +531,16 @@ async function initializeApp() {
       console.log("No API key found in configuration. User will need to set up.")
     }
     
-    initializeHelpers()
+    // Initialize model providers before helpers
+    const { initializeModelProviders } = await import('./initModelProviders');
+    await initializeModelProviders();
+    
+    // Verify all providers are registered
+    const registry = ModelProviderRegistry.getInstance();
+    console.log('Registered providers:', 
+      registry.getAllProviders().map(p => p.displayName));
+    
+    initializeHelpers();
     initializeIpcHandlers({
       getMainWindow,
       setWindowDimensions,
