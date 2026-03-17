@@ -1,0 +1,36 @@
+// initModelProviders.ts
+import { ModelProviderRegistry } from './ModelProviderRegistry';
+import { OpenAIProvider } from './providers/OpenAIProvider';
+import { GeminiProvider } from './providers/GeminiProvider';
+import { AnthropicProvider } from './providers/AnthropicProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
+import { ByteDanceProvider } from './providers/ByteDanceProvider';
+
+export function initializeModelProviders() {
+  const registry = ModelProviderRegistry.getInstance();
+  
+  // Register all available providers
+  const providers = [
+    new OpenAIProvider(),
+    new GeminiProvider(),
+    new AnthropicProvider(),
+    new OllamaProvider(),
+    new ByteDanceProvider()
+  ];
+
+  providers.forEach(provider => {
+    registry.registerProvider(provider);
+    console.log(`Registered provider: ${provider.displayName}`);
+  });
+  
+  console.log('All model providers initialized');
+}
+
+// Export providers for direct access if needed
+export {
+  OpenAIProvider,
+  GeminiProvider,
+  AnthropicProvider,
+  OllamaProvider,
+  ByteDanceProvider
+}
