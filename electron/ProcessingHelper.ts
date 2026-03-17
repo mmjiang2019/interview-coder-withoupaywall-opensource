@@ -1,904 +1,227 @@
-// ProcessingHelper.ts
-import fs from "node:fs"
-import path from "node:path"
-import { ScreenshotHelper } from "./ScreenshotHelper"
-import { IProcessingHelperDeps } from "./main"
-import * as axios from "axios"
-import { app, BrowserWindow, dialog } from "electron"
-import { OpenAI } from "openai"
-import { configHelper } from "./ConfigHelper"
-import Anthropic from '@anthropic-ai/sdk';
+// ProcessingHelper.ts - Refactored AI processing with provider pattern
 
-// Interface for Gemini API requests
-interface GeminiMessage {
-  role: string;
-  parts: Array<{
-    text?: string;
-    inlineData?: {
-      mimeType: string;
-      data: string;
-    }
-  }>;
-}
+import fs from "node:fs";
+import path from "node:path";
+import { ScreenshotHelper } from "./ScreenshotHelper";
+import { IProcessingHelperDeps } from "./main";
+import { configHelper } from "./ConfigHelper";
+import { providerRegistry } from "./providers/ProviderRegistry";
+import { ChatMessage, ChatCompletionRequest } from "./providers/AIProvider";
 
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-    finishReason: string;
-  }>;
-}
-// UnComment, useless currently.
-// interface AnthropicMessage {
-//   role: 'user' | 'assistant';
-//   content: Array<{
-//     type: 'text' | 'image';
-//     text?: string;
-//     source?: {
-//       type: 'base64';
-//       media_type: string;
-//       data: string;
-//     };
-//   }>;
-// }
 export class ProcessingHelper {
-  private deps: IProcessingHelperDeps
-  private screenshotHelper: ScreenshotHelper
-  private openaiClient: OpenAI | null = null
-  private geminiApiKey: string | null = null
-  private anthropicClient: Anthropic | null = null
-  private ollamaClient: OpenAI | null = null // TODO: fix me for ollama
-  private bytedanceClient: OpenAI | null = null // TODO: fix me for ByteDance
-
-  // AbortControllers for API requests
-  private currentProcessingAbortController: AbortController | null = null
-  private currentExtraProcessingAbortController: AbortController | null = null
+  private deps: IProcessingHelperDeps;
+  private screenshotHelper: ScreenshotHelper;
+  private currentProcessingAbortController: AbortController | null = null;
+  private currentExtraProcessingAbortController: AbortController | null = null;
+  private currentProvider: any = null;
 
   constructor(deps: IProcessingHelperDeps) {
-    this.deps = deps
-    this.screenshotHelper = deps.getScreenshotHelper()
-    
-    // Initialize AI client based on config
-    this.initializeAIClient();
-    
-    // Listen for config changes to re-initialize the AI client
-    configHelper.on('config-updated', () => {
-      this.initializeAIClient();
-    });
+    this.deps = deps;
+    this.screenshotHelper = deps.getScreenshotHelper();
+    this.initializeProvider();
   }
-  
+
   /**
-   * Initialize or reinitialize the AI client with current config
+   * Initialize provider based on config
    */
-  private initializeAIClient(): void {
+  private async initializeProvider(): Promise<void> {
+    const config = configHelper.loadConfig();
     try {
-      const config = configHelper.loadConfig();
-      
-      if (config.apiProvider === "openai") {
-        this.geminiApiKey = null;
-        this.anthropicClient = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = null;
-      if (config.apiKey) {
-          this.openaiClient = new OpenAI({ 
-            apiKey: config.apiKey,
-            timeout: 60000, // 60 second timeout
-            maxRetries: 2   // Retry up to 2 times
-          });
-          console.log("OpenAI client initialized successfully");
-        } else {
-          this.openaiClient = null;
-          console.warn("No API key available, OpenAI client not initialized");
-        }
-      } else if (config.apiProvider === "gemini"){
-        // Gemini client initialization
-        this.openaiClient = null;
-        this.anthropicClient = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = null;
-        if (config.apiKey) {
-          this.geminiApiKey = config.apiKey;
-          console.log("Gemini API key set successfully");
-        } else {
-          this.geminiApiKey = null;
-          console.warn("No API key available, Gemini client not initialized");
-        }
-      } else if (config.apiProvider === "anthropic") {
-        // Reset other clients
-        this.openaiClient = null;
-        this.geminiApiKey = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = null;
-        if (config.apiKey) {
-          this.anthropicClient = new Anthropic({
-            apiKey: config.apiKey,
-            timeout: 60000,
-            maxRetries: 2
-          });
-          console.log("Anthropic client initialized successfully");
-        } else {
-          this.anthropicClient = null;
-          console.warn("No API key available, Anthropic client not initialized");
-        }
-      } else if (config.apiProvider === "ollama") {
-        // Ollama client initialization
-        this.openaiClient = null;
-        this.geminiApiKey = null;
-        this.anthropicClient = null;
-        this.bytedanceClient = null;
-        this.ollamaClient = new OpenAI({
-          apiKey: config.apiKey,
-          baseURL: "http://192.168.1.13:11434/v1", // Set the base URL for Ollama API
-          timeout: 60000, // 60 second timeout
-          maxRetries: 2   // Retry up to 2 times
-        });
-        console.log("Ollama client initialized successfully");
-      } else if (config.apiProvider === "bytedance") {
-        // ByteDance client initialization
-        this.openaiClient = null;
-        this.geminiApiKey = null;
-        this.anthropicClient = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = new OpenAI({
-          apiKey: config.apiKey,
-          baseURL: "https://ark.cn-beijing.volces.com/api/v3", // Set the base URL for ByteDance API
-          timeout: 60000, // 60 second timeout
-          maxRetries: 2   // Retry up to 2 times
-        });
-        console.log("ByteDance client initialized successfully");
-      } else {
-        this.openaiClient = null;
-        this.geminiApiKey = null;
-        this.anthropicClient = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = null;
-        console.warn("Unknown API provider, no client initialized");
-      }
+      this.currentProvider = await providerRegistry.getProvider(config.apiProvider);
+      console.log(`Provider initialized: ${this.currentProvider.getProviderName()}`);
     } catch (error) {
-      console.error("Failed to initialize AI client:", error);
-        this.openaiClient = null;
-        this.geminiApiKey = null;
-        this.anthropicClient = null;
-        this.ollamaClient = null;
-        this.bytedanceClient = null;
+      console.error("Failed to initialize provider:", error);
+      this.currentProvider = null;
     }
   }
 
-  private async waitForInitialization(
-    mainWindow: BrowserWindow
-  ): Promise<void> {
-    let attempts = 0
-    const maxAttempts = 50 // 5 seconds total
-
-    while (attempts < maxAttempts) {
-      const isInitialized = await mainWindow.webContents.executeJavaScript(
-        "window.__IS_INITIALIZED__"
-      )
-      if (isInitialized) return
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      attempts++
-    }
-    throw new Error("App failed to initialize after 5 seconds")
+  /**
+   * Refresh provider (call this when config changes)
+   */
+  private async refreshProvider(): Promise<void> {
+    // Clear all instances to force recreation
+    providerRegistry.clearInstances();
+    await this.initializeProvider();
   }
 
-  private async getCredits(): Promise<number> {
-    const mainWindow = this.deps.getMainWindow()
-    if (!mainWindow) return 999 // Unlimited credits in this version
+  /**
+   * Ensure provider is initialized
+   */
+  private async ensureProvider(): Promise<void> {
+    const config = configHelper.loadConfig();
 
-    try {
-      await this.waitForInitialization(mainWindow)
-      return 999 // Always return sufficient credits to work
-    } catch (error) {
-      console.error("Error getting credits:", error)
-      return 999 // Unlimited credits as fallback
+    // If provider is not initialized or provider changed, refresh
+    if (!this.currentProvider || this.currentProvider.getProviderName() !== config.apiProvider) {
+      await this.refreshProvider();
+    }
+
+    if (!this.currentProvider) {
+      throw new Error("Provider not initialized");
     }
   }
 
+  /**
+   * Get language from config or window
+   */
   private async getLanguage(): Promise<string> {
     try {
-      // Get language from config
       const config = configHelper.loadConfig();
       if (config.language) {
         return config.language;
       }
-      
-      // Fallback to window variable if config doesn't have language
-      const mainWindow = this.deps.getMainWindow()
+
+      // Fallback to window variable
+      const mainWindow = this.deps.getMainWindow();
       if (mainWindow) {
         try {
-          await this.waitForInitialization(mainWindow)
-          const language = await mainWindow.webContents.executeJavaScript(
-            "window.__LANGUAGE__"
-          )
-
-          if (
-            typeof language === "string" &&
-            language !== undefined &&
-            language !== null
-          ) {
+          await this.waitForInitialization(mainWindow);
+          const language = await mainWindow.webContents.executeJavaScript("window.__LANGUAGE__");
+          if (typeof language === "string" && language) {
             return language;
           }
         } catch (err) {
           console.warn("Could not get language from window", err);
         }
       }
-      
-      // Default fallback
+
       return "python";
     } catch (error) {
-      console.error("Error getting language:", error)
-      return "python"
+      console.error("Error getting language:", error);
+      return "python";
     }
   }
 
-  public async processScreenshots(): Promise<void> {
-    const mainWindow = this.deps.getMainWindow()
-    if (!mainWindow) return
+  /**
+   * Wait for window initialization
+   */
+  private async waitForInitialization(mainWindow: any): Promise<void> {
+    let attempts = 0;
+    const maxAttempts = 50;
 
-    const config = configHelper.loadConfig();
-    
-    // First verify we have a valid AI client
-    if (config.apiProvider === "openai" && !this.openaiClient) {
-      this.initializeAIClient();
-      
-      if (!this.openaiClient) {
-        console.error("OpenAI client not initialized");
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-        );
-        return;
-      }
-    } else if (config.apiProvider === "gemini" && !this.geminiApiKey) {
-      this.initializeAIClient();
-      
-      if (!this.geminiApiKey) {
-        console.error("Gemini API key not initialized");
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-        );
-        return;
-      }
-    } else if (config.apiProvider === "anthropic" && !this.anthropicClient) {
-      // Add check for Anthropic client
-      this.initializeAIClient();
-      
-      if (!this.anthropicClient) {
-        console.error("Anthropic client not initialized");
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-        );
-        return;
-      }
-    } else if (config.apiProvider === "ollama" && !this.ollamaClient) {
-      // Add check for Ollama client
-      this.initializeAIClient();
-      
-      if (!this.ollamaClient) {
-        console.error("Ollama client not initialized");
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-        );
-        return;
-      }
-    } else if (config.apiProvider === "bytedance" && !this.bytedanceClient) {
-      // Add check for ByteDance client
-      this.initializeAIClient();
-      
-      if (!this.bytedanceClient) {
-        console.error("ByteDance client not initialized");
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-        );
-        return;
-      }
+    while (attempts < maxAttempts) {
+      const isInitialized = await mainWindow.webContents.executeJavaScript("window.__IS_INITIALIZED__");
+      if (isInitialized) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts++;
     }
-
-    const view = this.deps.getView()
-    console.log("Processing screenshots in view:", view)
-
-    if (view === "queue") {
-      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
-      const screenshotQueue = this.screenshotHelper.getScreenshotQueue()
-      console.log("Processing main queue screenshots:", screenshotQueue)
-      
-      // Check if the queue is empty
-      if (!screenshotQueue || screenshotQueue.length === 0) {
-        console.log("No screenshots found in queue");
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
-        return;
-      }
-
-      // Check that files actually exist
-      const existingScreenshots = screenshotQueue.filter(path => fs.existsSync(path));
-      if (existingScreenshots.length === 0) {
-        console.log("Screenshot files don't exist on disk");
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
-        return;
-      }
-
-      try {
-        // Initialize AbortController
-        this.currentProcessingAbortController = new AbortController()
-        const { signal } = this.currentProcessingAbortController
-
-        const screenshots = await Promise.all(
-          existingScreenshots.map(async (path) => {
-            try {
-              return {
-                path,
-                preview: await this.screenshotHelper.getImagePreview(path),
-                data: fs.readFileSync(path).toString('base64')
-              };
-            } catch (err) {
-              console.error(`Error reading screenshot ${path}:`, err);
-              return null;
-            }
-          })
-        )
-
-        // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
-        
-        if (validScreenshots.length === 0) {
-          throw new Error("Failed to load screenshot data");
-        }
-
-        const result = await this.processScreenshotsHelper(validScreenshots, signal)
-
-        if (!result.success) {
-          console.log("Processing failed:", result.error)
-          if (result.error?.includes("API Key") || result.error?.includes("OpenAI") || result.error?.includes("Gemini")) {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.API_KEY_INVALID
-            )
-          } else {
-            mainWindow.webContents.send(
-              this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-              result.error
-            )
-          }
-          // Reset view back to queue on error
-          console.log("Resetting view to queue due to error")
-          this.deps.setView("queue")
-          return
-        }
-
-        // Only set view to solutions if processing succeeded
-        console.log("Setting view to solutions after successful processing")
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
-          result.data
-        )
-        this.deps.setView("solutions")
-      } catch (error: any) {
-        mainWindow.webContents.send(
-          this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-          error
-        )
-        console.error("Processing error:", error)
-        if (axios.isCancel(error)) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            "Processing was canceled by the user."
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            error.message || "Server error. Please try again."
-          )
-        }
-        // Reset view back to queue on error
-        console.log("Resetting view to queue due to error")
-        this.deps.setView("queue")
-      } finally {
-        this.currentProcessingAbortController = null
-      }
-    } else {
-      // view == 'solutions'
-      const extraScreenshotQueue =
-        this.screenshotHelper.getExtraScreenshotQueue()
-      console.log("Processing extra queue screenshots:", extraScreenshotQueue)
-      
-      // Check if the extra queue is empty
-      if (!extraScreenshotQueue || extraScreenshotQueue.length === 0) {
-        console.log("No extra screenshots found in queue");
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
-        
-        return;
-      }
-
-      // Check that files actually exist
-      const existingExtraScreenshots = extraScreenshotQueue.filter(path => fs.existsSync(path));
-      if (existingExtraScreenshots.length === 0) {
-        console.log("Extra screenshot files don't exist on disk");
-        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
-        return;
-      }
-      
-      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START)
-
-      // Initialize AbortController
-      this.currentExtraProcessingAbortController = new AbortController()
-      const { signal } = this.currentExtraProcessingAbortController
-
-      try {
-        // Get all screenshots (both main and extra) for processing
-        const allPaths = [
-          ...this.screenshotHelper.getScreenshotQueue(),
-          ...existingExtraScreenshots
-        ];
-        
-        const screenshots = await Promise.all(
-          allPaths.map(async (path) => {
-            try {
-              if (!fs.existsSync(path)) {
-                console.warn(`Screenshot file does not exist: ${path}`);
-                return null;
-              }
-              
-              return {
-                path,
-                preview: await this.screenshotHelper.getImagePreview(path),
-                data: fs.readFileSync(path).toString('base64')
-              };
-            } catch (err) {
-              console.error(`Error reading screenshot ${path}:`, err);
-              return null;
-            }
-          })
-        )
-        
-        // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
-        
-        if (validScreenshots.length === 0) {
-          throw new Error("Failed to load screenshot data for debugging");
-        }
-        
-        console.log(
-          "Combined screenshots for processing:",
-          validScreenshots.map((s) => s.path)
-        )
-
-        const result = await this.processExtraScreenshotsHelper(
-          validScreenshots,
-          signal
-        )
-
-        if (result.success) {
-          this.deps.setHasDebugged(true)
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_SUCCESS,
-            result.data
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            result.error
-          )
-        }
-      } catch (error: any) {
-        if (axios.isCancel(error)) {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            "Extra processing was canceled by the user."
-          )
-        } else {
-          mainWindow.webContents.send(
-            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            error.message
-          )
-        }
-      } finally {
-        this.currentExtraProcessingAbortController = null
-      }
-    }
+    throw new Error("App failed to initialize after 5 seconds");
   }
 
+  /**
+   * Build messages for API call
+   */
+  private async buildMessages(
+    taskType: "extraction" | "solution" | "debugging",
+    content: string,
+    images?: string[]
+  ): Promise<ChatMessage[]> {
+    const language = await this.getLanguage();
+    const systemPrompt = this.currentProvider.buildSystemPrompt(language, taskType);
+
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      {
+        role: "user",
+        content,
+        images,
+      },
+    ];
+
+    return messages;
+  }
+
+  /**
+   * Process screenshots helper
+   */
   private async processScreenshotsHelper(
     screenshots: Array<{ path: string; data: string }>,
-    signal: AbortSignal
-  ) {
+    signal?: AbortSignal
+  ): Promise<any> {
     try {
       const config = configHelper.loadConfig();
       const language = await this.getLanguage();
       const mainWindow = this.deps.getMainWindow();
-      
-      // Step 1: Extract problem info using AI Vision API (OpenAI or Gemini)
-      const imageDataList = screenshots.map(screenshot => screenshot.data);
-      
-      // Update the user on progress
+
+      // Update progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
           message: "Analyzing problem from screenshots...",
-          progress: 20
+          progress: 20,
         });
       }
 
-      let problemInfo;
-      
-      if (config.apiProvider === "openai") {
-        // Verify OpenAI client
-        if (!this.openaiClient) {
-          this.initializeAIClient(); // Try to reinitialize
-          
-          if (!this.openaiClient) {
-            return {
-              success: false,
-              error: "OpenAI API key not configured or invalid. Please check your settings."
-            };
-          }
-        }
+      // Build messages
+      const promptText = `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`;
+      const messages = await this.buildMessages("extraction", promptText, screenshots.map(s => s.data));
 
-        // Use OpenAI for processing
-        const messages = [
-          {
-            role: "system" as const, 
-            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        // Send to OpenAI Vision API
-        const extractionResponse = await this.openaiClient.chat.completions.create({
+      // Call AI
+      const response = await this.currentProvider.chat(
+        {
           model: config.extractionModel || "gpt-4o",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
+          messages,
+          maxTokens: 4000,
+          temperature: 0.2,
+        },
+        signal
+      );
 
-        // Parse the response
-        try {
-          const responseText = extractionResponse.choices[0].message.content;
-          // Handle when OpenAI might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error parsing OpenAI response:", error);
-          return {
-            success: false,
-            error: "Failed to parse problem information. Please try again or use clearer screenshots."
-          };
-        }
-      } else if (config.apiProvider === "ollama") {
-        // Verify Ollama client
-        if (!this.ollamaClient) {
-          this.initializeAIClient(); // Try to reinitialize
-          
-          if (!this.ollamaClient) {
-            return {
-              success: false,
-              error: "Ollama API key not configured or invalid. Please check your settings."
-            };
-          }
-        }
-
-        // Use Ollama for processing
-        const messages = [
-          {
-            role: "system" as const, 
-            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        // Send to Ollama Vision API
-        
-        // 循环打印message对象
-        // for (const message of messages) {
-        //   console.log("Message:", message);
-        // }
-
-        // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
-        const extractionResponse = await this.ollamaClient.chat.completions.create({
-          model: config.extractionModel || "qwen2.5-it:3b",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-
-        // Parse the response
-        try {
-          const responseText = extractionResponse.choices[0].message.content;
-          // Handle when OpenAI might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error parsing Ollama response:", error);
-          return {
-            success: false,
-            error: "Failed to parse problem information. Please try again or use clearer screenshots."
-          };
-        }
-      } else if (config.apiProvider === "bytedance") {
-        // Verify ByteDance client
-        if (!this.bytedanceClient) {
-          this.initializeAIClient(); // Try to reinitialize
-          
-          if (!this.bytedanceClient) {
-            return {
-              success: false,
-              error: "ByteDance API key not configured or invalid. Please check your settings."
-            };
-          }
-        }
-
-        // Use ByteDance for processing
-        const messages = [
-          {
-            role: "system" as const, 
-            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        // Send to ByteDance Vision API
-        
-        // 循环打印message对象
-        // for (const message of messages) {
-        //   console.log("Message:", message);
-        // }
-
-        // TODO：这里看上去不能直接用chatgpt的接口，可能需要进行扩展开发
-        const extractionResponse = await this.bytedanceClient.chat.completions.create({
-          model: config.extractionModel || "doubao-seed-1-6-flash-250615",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-
-        // Parse the response
-        try {
-          const responseText = extractionResponse.choices[0].message.content;
-          // Handle when OpenAI might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error parsing ByteDance response:", error);
-          return {
-            success: false,
-            error: "Failed to parse problem information. Please try again or use clearer screenshots."
-          };
-        }
-      } else if (config.apiProvider === "gemini")  {
-        // Use Gemini API
-        if (!this.geminiApiKey) {
-          return {
-            success: false,
-            error: "Gemini API key not configured. Please check your settings."
-          };
-        }
-
-        try {
-          // Create Gemini message structure
-          const geminiMessages: GeminiMessage[] = [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`
-                },
-                ...imageDataList.map(data => ({
-                  inlineData: {
-                    mimeType: "image/png",
-                    data: data
-                  }
-                }))
-              ]
-            }
-          ];
-
-          // Make API request to Gemini
-          const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
-            {
-              contents: geminiMessages,
-              generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: 4000
-              }
-            },
-            { signal }
-          );
-
-          const responseData = response.data as GeminiResponse;
-          
-          if (!responseData.candidates || responseData.candidates.length === 0) {
-            throw new Error("Empty response from Gemini API");
-          }
-          
-          const responseText = responseData.candidates[0].content.parts[0].text;
-          
-          // Handle when Gemini might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error using Gemini API:", error);
-          return {
-            success: false,
-            error: "Failed to process with Gemini API. Please check your API key or try again later."
-          };
-        }
-      } else if (config.apiProvider === "anthropic") {
-        if (!this.anthropicClient) {
-          return {
-            success: false,
-            error: "Anthropic API key not configured. Please check your settings."
-          };
-        }
-
-        try {
-          const messages = [
-            {
-              role: "user" as const,
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Extract the coding problem details from these screenshots. Return in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`
-                },
-                ...imageDataList.map(data => ({
-                  type: "image" as const,
-                  source: {
-                    type: "base64" as const,
-                    media_type: "image/png" as const,
-                    data: data
-                  }
-                }))
-              ]
-            }
-          ];
-
-          const response = await this.anthropicClient.messages.create({
-            model: config.extractionModel || "claude-3-7-sonnet-20250219",
-            max_tokens: 4000,
-            messages: messages,
-            temperature: 0.2
-          });
-
-          const responseText = (response.content[0] as { type: 'text', text: string }).text;
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error: any) {
-          console.error("Error using Anthropic API:", error);
-
-          // Add specific handling for Claude's limitations
-          if (error.status === 429) {
-            return {
-              success: false,
-              error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
-            };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
-            return {
-              success: false,
-              error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
-            };
-          }
-
-          return {
-            success: false,
-            error: "Failed to process with Anthropic API. Please check your API key or try again later."
-          };
-        }
+      // Parse response
+      const problemInfo = this.currentProvider.parseJSONResponse(response.content);
+      if (!problemInfo) {
+        throw new Error("Failed to parse problem information");
       }
-      
-      // Update the user on progress
+
+      // Update progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
           message: "Problem analyzed successfully. Preparing to generate solution...",
-          progress: 40
+          progress: 40,
         });
       }
 
-      // Store problem info in AppState
+      // Store problem info
       this.deps.setProblemInfo(problemInfo);
 
-      // Send first success event
+      // Generate solutions
       if (mainWindow) {
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.PROBLEM_EXTRACTED,
           problemInfo
         );
 
-        // Generate solutions after successful extraction
         const solutionsResult = await this.generateSolutionsHelper(signal);
         if (solutionsResult.success) {
-          // Clear any existing extra screenshots before transitioning to solutions view
           this.screenshotHelper.clearExtraScreenshotQueue();
-          
-          // Final progress update
+
           mainWindow.webContents.send("processing-status", {
             message: "Solution generated successfully",
-            progress: 100
+            progress: 100,
           });
-          
+
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
             solutionsResult.data
           );
+
           return { success: true, data: solutionsResult.data };
         } else {
-          throw new Error(
-            solutionsResult.error || "Failed to generate solutions"
-          );
+          throw new Error(solutionsResult.error || "Failed to generate solutions");
         }
       }
 
       return { success: false, error: "Failed to process screenshots" };
     } catch (error: any) {
-      // If the request was cancelled, don't retry
-      if (axios.isCancel(error)) {
-        return {
-          success: false,
-          error: "Processing was canceled by the user."
-        };
-      }
-      
-      // Handle OpenAI API errors specifically
-      if (error?.response?.status === 401) {
-        return {
-          success: false,
-          error: "Invalid OpenAI API key. Please check your settings."
-        };
-      } else if (error?.response?.status === 429) {
-        return {
-          success: false,
-          error: "OpenAI API rate limit exceeded or insufficient credits. Please try again later."
-        };
-      } else if (error?.response?.status === 500) {
-        return {
-          success: false,
-          error: "OpenAI server error. Please try again later."
-        };
-      }
-
-      console.error("API Error Details:", error);
-      return { 
-        success: false, 
-        error: error.message || "Failed to process screenshots. Please try again." 
-      };
+      return this.currentProvider.handleError(error, "Problem extraction");
     }
   }
 
-  private async generateSolutionsHelper(signal: AbortSignal) {
+  /**
+   * Generate solutions helper
+   */
+  private async generateSolutionsHelper(signal?: AbortSignal): Promise<any> {
     try {
       const problemInfo = this.deps.getProblemInfo();
       const language = await this.getLanguage();
@@ -909,15 +232,15 @@ export class ProcessingHelper {
         throw new Error("No problem info available");
       }
 
-      // Update progress status
+      // Update progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
           message: "Creating optimal solution with detailed explanations...",
-          progress: 60
+          progress: 60,
         });
       }
 
-      // Create prompt for solution generation
+      // Build prompt
       const promptText = `
 Generate a detailed solution for the following coding problem:
 
@@ -946,206 +269,51 @@ For complexity explanations, please be thorough. For example: "Time complexity: 
 Your solution should be efficient, well-commented, and handle edge cases.
 `;
 
-      let responseContent;
-      
-      if (config.apiProvider === "openai") {
-        // OpenAI processing
-        if (!this.openaiClient) {
-          return {
-            success: false,
-            error: "OpenAI API key not configured. Please check your settings."
-          };
-        }
-        
-        // Send to OpenAI API
-        const solutionResponse = await this.openaiClient.chat.completions.create({
+      // Build messages
+      const messages = await this.buildMessages("solution", promptText);
+
+      // Call AI
+      const response = await this.currentProvider.chat(
+        {
           model: config.solutionModel || "gpt-4o",
-          messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
-            { role: "user", content: promptText }
-          ],
-          max_tokens: 4000,
-          temperature: 0.2
-        });
+          messages,
+          maxTokens: 4000,
+          temperature: 0.2,
+        },
+        signal
+      );
 
-        responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider == "ollama") {
-          // Ollama processing
-          if (!this.ollamaClient) {
-          return {
-            success: false,
-            error: "Ollama API key not configured. Please check your settings."
-          };
-        }
-        
-        // Send to OpenAI API
-        const solutionResponse = await this.ollamaClient.chat.completions.create({
-          model: config.solutionModel || "qwen2.5-it:3b",
-          messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
-            { role: "user", content: promptText }
-          ],
-          max_tokens: 4000,
-          temperature: 0.2
-        });
+      // Parse response
+      const content = response.content;
+      const codeMatch = content.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+      const code = codeMatch ? codeMatch[1].trim() : content;
 
-        responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider == "bytedance") {
-          // ByteDance processing
-          if (!this.bytedanceClient) {
-          return {
-            success: false,
-            error: "ByteDance API key not configured. Please check your settings."
-          };
-        }
-        
-        // Send to OpenAI API
-        const solutionResponse = await this.bytedanceClient.chat.completions.create({
-          model: config.solutionModel || "doubao-seed-1-6-flash-250615",
-          messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
-            { role: "user", content: promptText }
-          ],
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-
-        responseContent = solutionResponse.choices[0].message.content;
-      } else if (config.apiProvider === "gemini")  {
-        // Gemini processing
-        if (!this.geminiApiKey) {
-          return {
-            success: false,
-            error: "Gemini API key not configured. Please check your settings."
-          };
-        }
-        
-        try {
-          // Create Gemini message structure
-          const geminiMessages = [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
-                }
-              ]
-            }
-          ];
-
-          // Make API request to Gemini
-          const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
-            {
-              contents: geminiMessages,
-              generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: 4000
-              }
-            },
-            { signal }
-          );
-
-          const responseData = response.data as GeminiResponse;
-          
-          if (!responseData.candidates || responseData.candidates.length === 0) {
-            throw new Error("Empty response from Gemini API");
-          }
-          
-          responseContent = responseData.candidates[0].content.parts[0].text;
-        } catch (error) {
-          console.error("Error using Gemini API for solution:", error);
-          return {
-            success: false,
-            error: "Failed to generate solution with Gemini API. Please check your API key or try again later."
-          };
-        }
-      } else if (config.apiProvider === "anthropic") {
-        // Anthropic processing
-        if (!this.anthropicClient) {
-          return {
-            success: false,
-            error: "Anthropic API key not configured. Please check your settings."
-          };
-        }
-        
-        try {
-          const messages = [
-            {
-              role: "user" as const,
-              content: [
-                {
-                  type: "text" as const,
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
-                }
-              ]
-            }
-          ];
-
-          // Send to Anthropic API
-          const response = await this.anthropicClient.messages.create({
-            model: config.solutionModel || "claude-3-7-sonnet-20250219",
-            max_tokens: 4000,
-            messages: messages,
-            temperature: 0.2
-          });
-
-          responseContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
-          console.error("Error using Anthropic API for solution:", error);
-
-          // Add specific handling for Claude's limitations
-          if (error.status === 429) {
-            return {
-              success: false,
-              error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
-            };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
-            return {
-              success: false,
-              error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
-            };
-          }
-
-          return {
-            success: false,
-            error: "Failed to generate solution with Anthropic API. Please check your API key or try again later."
-          };
-        }
-      }
-      
-      // Extract parts from the response
-      const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
-      const code = codeMatch ? codeMatch[1].trim() : responseContent;
-      
-      // Extract thoughts, looking for bullet points or numbered lists
+      // Extract thoughts
       const thoughtsRegex = /(?:Thoughts:|Key Insights:|Reasoning:|Approach:)([\s\S]*?)(?:Time complexity:|$)/i;
-      const thoughtsMatch = responseContent.match(thoughtsRegex);
+      const thoughtsMatch = content.match(thoughtsRegex);
       let thoughts: string[] = [];
-      
+
       if (thoughtsMatch && thoughtsMatch[1]) {
-        // Extract bullet points or numbered items
         const bulletPoints = thoughtsMatch[1].match(/(?:^|\n)\s*(?:[-*•]|\d+\.)\s*(.*)/g);
         if (bulletPoints) {
-          thoughts = bulletPoints.map(point => 
+          thoughts = bulletPoints.map(point =>
             point.replace(/^\s*(?:[-*•]|\d+\.)\s*/, '').trim()
           ).filter(Boolean);
         } else {
-          // If no bullet points found, split by newlines and filter empty lines
           thoughts = thoughtsMatch[1].split('\n')
             .map((line) => line.trim())
             .filter(Boolean);
         }
       }
-      
-      // Extract complexity information
+
+      // Extract complexity
       const timeComplexityPattern = /Time complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:Space complexity|$))/i;
       const spaceComplexityPattern = /Space complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:[A-Z]|$))/i;
-      
+
       let timeComplexity = "O(n) - Linear time complexity because we only iterate through the array once. Each element is processed exactly one time, and the hashmap lookups are O(1) operations.";
       let spaceComplexity = "O(n) - Linear space complexity because we store elements in the hashmap. In the worst case, we might need to store all elements before finding the solution pair.";
-      
-      const timeMatch = responseContent.match(timeComplexityPattern);
+
+      const timeMatch = content.match(timeComplexityPattern);
       if (timeMatch && timeMatch[1]) {
         timeComplexity = timeMatch[1].trim();
         if (!timeComplexity.match(/O\([^)]+\)/i)) {
@@ -1159,8 +327,8 @@ Your solution should be efficient, well-commented, and handle edge cases.
           }
         }
       }
-      
-      const spaceMatch = responseContent.match(spaceComplexityPattern);
+
+      const spaceMatch = content.match(spaceComplexityPattern);
       if (spaceMatch && spaceMatch[1]) {
         spaceComplexity = spaceMatch[1].trim();
         if (!spaceComplexity.match(/O\([^)]+\)/i)) {
@@ -1175,43 +343,27 @@ Your solution should be efficient, well-commented, and handle edge cases.
         }
       }
 
-      const formattedResponse = {
-        code: code,
-        thoughts: thoughts.length > 0 ? thoughts : ["Solution approach based on efficiency and readability"],
-        time_complexity: timeComplexity,
-        space_complexity: spaceComplexity
+      return {
+        success: true,
+        data: {
+          code,
+          thoughts: thoughts.length > 0 ? thoughts : ["Solution approach based on efficiency and readability"],
+          time_complexity: timeComplexity,
+          space_complexity: spaceComplexity,
+        },
       };
-
-      return { success: true, data: formattedResponse };
     } catch (error: any) {
-      if (axios.isCancel(error)) {
-        return {
-          success: false,
-          error: "Processing was canceled by the user."
-        };
-      }
-      
-      if (error?.response?.status === 401) {
-        return {
-          success: false,
-          error: "Invalid OpenAI API key. Please check your settings."
-        };
-      } else if (error?.response?.status === 429) {
-        return {
-          success: false,
-          error: "OpenAI API rate limit exceeded or insufficient credits. Please try again later."
-        };
-      }
-      
-      console.error("Solution generation error:", error);
-      return { success: false, error: error.message || "Failed to generate solution" };
+      return this.currentProvider.handleError(error, "Solution generation");
     }
   }
 
+  /**
+   * Process extra screenshots helper (debugging)
+   */
   private async processExtraScreenshotsHelper(
     screenshots: Array<{ path: string; data: string }>,
-    signal: AbortSignal
-  ) {
+    signal?: AbortSignal
+  ): Promise<any> {
     try {
       const problemInfo = this.deps.getProblemInfo();
       const language = await this.getLanguage();
@@ -1222,224 +374,16 @@ Your solution should be efficient, well-commented, and handle edge cases.
         throw new Error("No problem info available");
       }
 
-      // Update progress status
+      // Update progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
           message: "Processing debug screenshots...",
-          progress: 30
+          progress: 30,
         });
       }
 
-      // Prepare the images for the API call
-      const imageDataList = screenshots.map(screenshot => screenshot.data);
-      
-      let debugContent;
-      
-      if (config.apiProvider === "openai") {
-        if (!this.openaiClient) {
-          return {
-            success: false,
-            error: "OpenAI API key not configured. Please check your settings."
-          };
-        }
-        
-        const messages = [
-          {
-            role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        if (mainWindow) {
-          mainWindow.webContents.send("processing-status", {
-            message: "Analyzing code and generating debug feedback...",
-            progress: 60
-          });
-        }
-
-        const debugResponse = await this.openaiClient.chat.completions.create({
-          model: config.debuggingModel || "gpt-4o",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-
-        debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "ollama") {
-        if (!this.ollamaClient) {
-          return {
-            success: false,
-            error: "OpenAI API key not configured. Please check your settings."
-          };
-        }
-        
-        const messages = [
-          {
-            role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        if (mainWindow) {
-          mainWindow.webContents.send("processing-status", {
-            message: "Analyzing code and generating debug feedback...",
-            progress: 60
-          });
-        }
-
-        const debugResponse = await this.ollamaClient.chat.completions.create({
-          model: config.debuggingModel || "qwen2.5-it:3b",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-        
-        debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "bytedance") {
-        if (!this.bytedanceClient) {
-          return {
-            success: false,
-            error: "ByteDance API key not configured. Please check your settings."
-          };
-        }
-        
-        const messages = [
-          {
-            role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
-          },
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
-              },
-              ...imageDataList.map(data => ({
-                type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
-        ];
-
-        if (mainWindow) {
-          mainWindow.webContents.send("processing-status", {
-            message: "Analyzing code and generating debug feedback...",
-            progress: 60
-          });
-        }
-
-        const debugResponse = await this.bytedanceClient.chat.completions.create({
-          model: config.debuggingModel || "doubao-seed-1-6-flash-250615",
-          messages: messages,
-          max_tokens: 4000,
-          temperature: 0.2
-        });
-        
-        debugContent = debugResponse.choices[0].message.content;
-      } else if (config.apiProvider === "gemini")  {
-        if (!this.geminiApiKey) {
-          return {
-            success: false,
-            error: "Gemini API key not configured. Please check your settings."
-          };
-        }
-        
-        try {
-          const debugPrompt = `
+      // Build prompt
+      const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
 
 I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
@@ -1463,163 +407,48 @@ Here provide a clear explanation of why the changes are needed
 If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).
 `;
 
-          const geminiMessages = [
-            {
-              role: "user",
-              parts: [
-                { text: debugPrompt },
-                ...imageDataList.map(data => ({
-                  inlineData: {
-                    mimeType: "image/png",
-                    data: data
-                  }
-                }))
-              ]
-            }
-          ];
+      // Build messages
+      const messages = await this.buildMessages("debugging", debugPrompt, screenshots.map(s => s.data));
 
-          if (mainWindow) {
-            mainWindow.webContents.send("processing-status", {
-              message: "Analyzing code and generating debug feedback with Gemini...",
-              progress: 60
-            });
-          }
-
-          const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
-            {
-              contents: geminiMessages,
-              generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: 4000
-              }
-            },
-            { signal }
-          );
-
-          const responseData = response.data as GeminiResponse;
-          
-          if (!responseData.candidates || responseData.candidates.length === 0) {
-            throw new Error("Empty response from Gemini API");
-          }
-          
-          debugContent = responseData.candidates[0].content.parts[0].text;
-        } catch (error) {
-          console.error("Error using Gemini API for debugging:", error);
-          return {
-            success: false,
-            error: "Failed to process debug request with Gemini API. Please check your API key or try again later."
-          };
-        }
-      } else if (config.apiProvider === "anthropic") {
-        if (!this.anthropicClient) {
-          return {
-            success: false,
-            error: "Anthropic API key not configured. Please check your settings."
-          };
-        }
-        
-        try {
-          const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification.
-`;
-
-          const messages = [
-            {
-              role: "user" as const,
-              content: [
-                {
-                  type: "text" as const,
-                  text: debugPrompt
-                },
-                ...imageDataList.map(data => ({
-                  type: "image" as const,
-                  source: {
-                    type: "base64" as const,
-                    media_type: "image/png" as const, 
-                    data: data
-                  }
-                }))
-              ]
-            }
-          ];
-
-          if (mainWindow) {
-            mainWindow.webContents.send("processing-status", {
-              message: "Analyzing code and generating debug feedback with Claude...",
-              progress: 60
-            });
-          }
-
-          const response = await this.anthropicClient.messages.create({
-            model: config.debuggingModel || "claude-3-7-sonnet-20250219",
-            max_tokens: 4000,
-            messages: messages,
-            temperature: 0.2
-          });
-          
-          debugContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
-          console.error("Error using Anthropic API for debugging:", error);
-          
-          // Add specific handling for Claude's limitations
-          if (error.status === 429) {
-            return {
-              success: false,
-              error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
-            };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
-            return {
-              success: false,
-              error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
-            };
-          }
-          
-          return {
-            success: false,
-            error: "Failed to process debug request with Anthropic API. Please check your API key or try again later."
-          };
-        }
-      }
-      
-      
+      // Update progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Debug analysis complete",
-          progress: 100
+          message: "Analyzing code and generating debug feedback...",
+          progress: 60,
         });
       }
 
+      // Call AI
+      const response = await this.currentProvider.chat(
+        {
+          model: config.debuggingModel || "gpt-4o",
+          messages,
+          maxTokens: 4000,
+          temperature: 0.2,
+        },
+        signal
+      );
+
+      const content = response.content;
+
+      // Update progress
+      if (mainWindow) {
+        mainWindow.webContents.send("processing-status", {
+          message: "Debug analysis complete",
+          progress: 100,
+        });
+      }
+
+      // Parse response
       let extractedCode = "// Debug mode - see analysis below";
-      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
+      const codeMatch = content.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
       if (codeMatch && codeMatch[1]) {
         extractedCode = codeMatch[1].trim();
       }
 
-      let formattedDebugContent = debugContent;
-      
-      if (!debugContent.includes('# ') && !debugContent.includes('## ')) {
-        formattedDebugContent = debugContent
+      let formattedDebugContent = content;
+      if (!content.includes('# ') && !content.includes('## ')) {
+        formattedDebugContent = content
           .replace(/issues identified|problems found|bugs found/i, '## Issues Identified')
           .replace(/code improvements|improvements|suggested changes/i, '## Code Improvements')
           .replace(/optimizations|performance improvements/i, '## Optimizations')
@@ -1627,47 +456,217 @@ If you include code examples, use proper markdown code blocks with language spec
       }
 
       const bulletPoints = formattedDebugContent.match(/(?:^|\n)[ ]*(?:[-*•]|\d+\.)[ ]+([^\n]+)/g);
-      const thoughts = bulletPoints 
+      const thoughts = bulletPoints
         ? bulletPoints.map(point => point.replace(/^[ ]*(?:[-*•]|\d+\.)[ ]+/, '').trim()).slice(0, 5)
         : ["Debug analysis based on your screenshots"];
-      
-      const response = {
-        code: extractedCode,
-        debug_analysis: formattedDebugContent,
-        thoughts: thoughts,
-        time_complexity: "N/A - Debug mode",
-        space_complexity: "N/A - Debug mode"
-      };
 
-      return { success: true, data: response };
+      return {
+        success: true,
+        data: {
+          code: extractedCode,
+          debug_analysis: formattedDebugContent,
+          thoughts,
+          time_complexity: "N/A - Debug mode",
+          space_complexity: "N/A - Debug mode",
+        },
+      };
     } catch (error: any) {
-      console.error("Debug processing error:", error);
-      return { success: false, error: error.message || "Failed to process debug request" };
+      return this.currentProvider.handleError(error, "Debugging");
     }
   }
 
+  /**
+   * Process screenshots - main entry point
+   */
+  public async processScreenshots(): Promise<void> {
+    const mainWindow = this.deps.getMainWindow();
+    if (!mainWindow) return;
+
+    const config = configHelper.loadConfig();
+
+    // Ensure provider is initialized
+    await this.ensureProvider();
+
+    const view = this.deps.getView();
+    console.log("Processing screenshots in view:", view);
+
+    if (view === "queue") {
+      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START);
+      const screenshotQueue = this.screenshotHelper.getScreenshotQueue();
+
+      if (!screenshotQueue || screenshotQueue.length === 0) {
+        console.log("No screenshots found in queue");
+        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
+        return;
+      }
+
+      const existingScreenshots = screenshotQueue.filter(path => fs.existsSync(path));
+      if (existingScreenshots.length === 0) {
+        console.log("Screenshot files don't exist on disk");
+        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
+        return;
+      }
+
+      try {
+        this.currentProcessingAbortController = new AbortController();
+        const { signal } = this.currentProcessingAbortController;
+
+        const screenshots = await Promise.all(
+          existingScreenshots.map(async (path) => {
+            try {
+              return {
+                path,
+                preview: await this.screenshotHelper.getImagePreview(path),
+                data: fs.readFileSync(path).toString('base64'),
+              };
+            } catch (err) {
+              console.error(`Error reading screenshot ${path}:`, err);
+              return null;
+            }
+          })
+        );
+
+        const validScreenshots = screenshots.filter(Boolean);
+        if (validScreenshots.length === 0) {
+          throw new Error("Failed to load screenshot data");
+        }
+
+        const result = await this.processScreenshotsHelper(validScreenshots, signal);
+
+        if (!result.success) {
+          console.log("Processing failed:", result.error);
+          if (result.error?.includes("API Key") || result.error?.includes("Provider")) {
+            mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.API_KEY_INVALID);
+          } else {
+            mainWindow.webContents.send(
+              this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
+              result.error
+            );
+          }
+          this.deps.setView("queue");
+          return;
+        }
+
+        console.log("Setting view to solutions after successful processing");
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
+          result.data
+        );
+        this.deps.setView("solutions");
+      } catch (error: any) {
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
+          error
+        );
+        console.error("Processing error:", error);
+        this.deps.setView("queue");
+      } finally {
+        this.currentProcessingAbortController = null;
+      }
+    } else {
+      // view == 'solutions'
+      const extraScreenshotQueue = this.screenshotHelper.getExtraScreenshotQueue();
+      console.log("Processing extra queue screenshots:", extraScreenshotQueue);
+
+      if (!extraScreenshotQueue || extraScreenshotQueue.length === 0) {
+        console.log("No extra screenshots found in queue");
+        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
+        return;
+      }
+
+      const existingExtraScreenshots = extraScreenshotQueue.filter(path => fs.existsSync(path));
+      if (existingExtraScreenshots.length === 0) {
+        console.log("Extra screenshot files don't exist on disk");
+        mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
+        return;
+      }
+
+      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.DEBUG_START);
+
+      this.currentExtraProcessingAbortController = new AbortController();
+      const { signal } = this.currentExtraProcessingAbortController;
+
+      try {
+        const allPaths = [
+          ...this.screenshotHelper.getScreenshotQueue(),
+          ...existingExtraScreenshots,
+        ];
+
+        const screenshots = await Promise.all(
+          allPaths.map(async (path) => {
+            try {
+              if (!fs.existsSync(path)) {
+                console.warn(`Screenshot file does not exist: ${path}`);
+                return null;
+              }
+              return {
+                path,
+                preview: await this.screenshotHelper.getImagePreview(path),
+                data: fs.readFileSync(path).toString('base64'),
+              };
+            } catch (err) {
+              console.error(`Error reading screenshot ${path}:`, err);
+              return null;
+            }
+          })
+        );
+
+        const validScreenshots = screenshots.filter(Boolean);
+        if (validScreenshots.length === 0) {
+          throw new Error("Failed to load screenshot data for debugging");
+        }
+
+        console.log("Combined screenshots for processing:", validScreenshots.map((s) => s.path));
+
+        const result = await this.processExtraScreenshotsHelper(validScreenshots, signal);
+
+        if (result.success) {
+          this.deps.setHasDebugged(true);
+          mainWindow.webContents.send(
+            this.deps.PROCESSING_EVENTS.DEBUG_SUCCESS,
+            result.data
+          );
+        } else {
+          mainWindow.webContents.send(
+            this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
+            result.error
+          );
+        }
+      } catch (error: any) {
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
+          error.message
+        );
+      } finally {
+        this.currentExtraProcessingAbortController = null;
+      }
+    }
+  }
+
+  /**
+   * Cancel ongoing requests
+   */
   public cancelOngoingRequests(): void {
-    let wasCancelled = false
+    let wasCancelled = false;
 
     if (this.currentProcessingAbortController) {
-      this.currentProcessingAbortController.abort()
-      this.currentProcessingAbortController = null
-      wasCancelled = true
+      this.currentProcessingAbortController.abort();
+      this.currentProcessingAbortController = null;
+      wasCancelled = true;
     }
 
     if (this.currentExtraProcessingAbortController) {
-      this.currentExtraProcessingAbortController.abort()
-      this.currentExtraProcessingAbortController = null
-      wasCancelled = true
+      this.currentExtraProcessingAbortController.abort();
+      this.currentExtraProcessingAbortController = null;
+      wasCancelled = true;
     }
 
-    this.deps.setHasDebugged(false)
+    this.deps.setHasDebugged(false);
+    this.deps.setProblemInfo(null);
 
-    this.deps.setProblemInfo(null)
-
-    const mainWindow = this.deps.getMainWindow()
+    const mainWindow = this.deps.getMainWindow();
     if (wasCancelled && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS)
+      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
     }
   }
 }

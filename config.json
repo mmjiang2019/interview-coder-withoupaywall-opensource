@@ -1,0 +1,10 @@
+{ "ollama":{
+  "apiKey": "ollama",
+  "apiProvider": "ollama",
+  "extractionModel": "qwen2.5-it:3b",
+  "solutionModel": "qwen2.5-it:3b",
+  "debuggingModel": "qwen2.5-it:3b",
+  "language": "golang",
+  "opacity": 1
+}
+}
