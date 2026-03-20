@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AIClient, AIClientConfig, ProcessingResult } from "./AIClient";
-import { Screenshot } from "../types/screenshots";
+import { Screenshot } from "../../src/types/screenshots";
 
 export class AnthropicClient implements AIClient {
   private client: Anthropic | null = null;
@@ -45,18 +45,18 @@ export class AnthropicClient implements AIClient {
               text: `Extract the coding problem details from these images. Return in JSON format. Preferred coding language is ${language}.`
             },
             ...images.map(data => ({
-              type: "image",
+              type: "image" as const,
               source: {
-                type: "base64",
+                type: "base64" as const,
                 data: data,
-                media_type: "image/png"
+                media_type: "image/png" as const
               }
             }))
           ]
         }]
       });
 
-      const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
+      const jsonText = (response.content[0] as { type: 'text', text: string }).text.replace(/```json|```/g, '').trim();
       return JSON.parse(jsonText);
     } catch (error: any) {
       console.error("Error calling Anthropic API:", error);
@@ -77,6 +77,7 @@ export class AnthropicClient implements AIClient {
         const response = await this.client.messages.create({
           model: "claude-3-opus-20240229",
           temperature: 0.7,
+          max_tokens: 4000,
           system: `You are a coding expert. Generate a unique solution for the given problem in ${language}. Make this solution different from previous solutions.`,
           messages: [{
             role: "user",
@@ -84,7 +85,7 @@ export class AnthropicClient implements AIClient {
           }]
         });
 
-        solutions.push(response.content[0].text);
+        solutions.push((response.content[0] as { type: 'text', text: string }).text);
       }
 
       return solutions;
@@ -94,7 +95,7 @@ export class AnthropicClient implements AIClient {
     }
   }
 
-  async processExtraScreenshots(screenshots: Screenshot[], existingInfo: ProcessingResult): Promise<ProcessingResult> {
+  async processExtraScreenshots(screenshots: Array<{ path: string; data: string }>, existingInfo: ProcessingResult): Promise<ProcessingResult> {
     if (!this.client) {
       throw new Error("Anthropic client not initialized");
     }
@@ -110,21 +111,22 @@ export class AnthropicClient implements AIClient {
           content: [
             {
               type: "text",
-              text: `Existing info: ${JSON.stringify(existingInfo)}\nAnalyze these additional screenshots and update the information.`
+              text: `Existing info: ${JSON.stringify(existingInfo)}
+Analyze these additional screenshots and update the information.`
             },
             ...screenshots.map(screenshot => ({
-              type: "image",
+              type: "image" as const,
               source: {
-                type: "base64",
-                data: screenshot.base64,
-                media_type: "image/png"
+                type: "base64" as const,
+                data: screenshot.data,
+                media_type: "image/png" as const
               }
             }))
           ]
         }]
       });
 
-      const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
+      const jsonText = (response.content[0] as { type: 'text', text: string }).text.replace(/```json|```/g, '').trim();
       return JSON.parse(jsonText);
     } catch (error: any) {
       console.error("Error processing extra screenshots with Anthropic:", error);

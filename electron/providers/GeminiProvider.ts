@@ -1,21 +1,12 @@
 // GeminiProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
-import axios from 'axios';
-
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-  }>;
-}
+import { GoogleGenAI } from '@google/genai';
+import { modelConfigManager } from '../config/ModelConfigManager';
 
 export class GeminiProvider extends BaseModelProvider {
   name = 'gemini';
   displayName = 'Gemini';
-  apiKeyPattern = /^[a-zA-Z0-9]{39}$/;
+  apiKeyPattern = /^[a-zA-Z0-9_]{39}$/;
   defaultModels = {
     extraction: 'gemini-2.0-flash',
     solution: 'gemini-2.0-flash',
@@ -27,28 +18,30 @@ export class GeminiProvider extends BaseModelProvider {
     if (!baseValidation.valid) return baseValidation;
 
     try {
-      const response = await axios.get(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-        {
-          data: { contents: [{ parts: [{ text: "test" }] }] },
-          timeout: 5000
-        }
-      );
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: 'test'
+      });
       
-      if (response.status === 200) {
+      if (response.text) {
         return { valid: true };
       }
       return { valid: false, error: 'Invalid Gemini API key' };
     } catch (error: any) {
       return { 
         valid: false, 
-        error: error.response?.status === 400 ? 'Invalid Gemini API key' : 'Failed to validate API key' 
+        error: error.message || 'Failed to validate API key' 
       };
     }
   }
 
-  async getClient(apiKey: string): Promise<{ apiKey: string }> {
-    return { apiKey };
+  protected async createClient(apiKey: string): Promise<GoogleGenAI> {
+    return new GoogleGenAI({ apiKey });
+  }
+
+  async getClient(apiKey: string): Promise<GoogleGenAI> {
+    return super.getClient(apiKey) as Promise<GoogleGenAI>;
   }
 
   async extractProblemInfo(params: {
@@ -62,8 +55,11 @@ export class GeminiProvider extends BaseModelProvider {
     example_input?: string;
     example_output?: string;
   }> {
-    const client = await this.getClient('');
-    const messages = [
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
+    
+    const contents = [
       {
         role: "user",
         parts: [
@@ -80,20 +76,16 @@ export class GeminiProvider extends BaseModelProvider {
       }
     ];
 
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${params.model || this.defaultModels.extraction}:generateContent?key=${client.apiKey}`,
-      {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4000
-        }
-      },
-      { signal: params.signal }
-    );
+    const response = await client.models.generateContent({
+      model: params.model || this.defaultModels.extraction,
+      contents,
+      config: {
+        temperature: 0.2,
+        maxOutputTokens: 4000
+      }
+    });
 
-    const responseData = response.data as GeminiResponse;
-    const responseText = responseData.candidates[0].content.parts[0].text;
+    const responseText = response.text;
     const jsonText = responseText.replace(/```json|```/g, '').trim();
     return JSON.parse(jsonText);
   }
@@ -114,7 +106,9 @@ export class GeminiProvider extends BaseModelProvider {
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const promptText = `
 Generate a detailed solution for the following coding problem:
 
@@ -139,7 +133,7 @@ I need the response in the following format:
 4. Space complexity: O(X) with a detailed explanation (at least 2 sentences)
 `;
 
-    const messages = [
+    const contents = [
       {
         role: "user",
         parts: [
@@ -150,20 +144,16 @@ I need the response in the following format:
       }
     ];
 
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${params.model || this.defaultModels.solution}:generateContent?key=${client.apiKey}`,
-      {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4000
-        }
-      },
-      { signal: params.signal }
-    );
+    const response = await client.models.generateContent({
+      model: params.model || this.defaultModels.solution,
+      contents,
+      config: {
+        temperature: 0.2,
+        maxOutputTokens: 4000
+      }
+    });
 
-    const responseData = response.data as GeminiResponse;
-    const responseText = responseData.candidates[0].content.parts[0].text;
+    const responseText = response.text;
     return this.parseSolutionResponse(responseText);
   }
 
@@ -185,7 +175,9 @@ I need the response in the following format:
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
 
@@ -210,7 +202,7 @@ Here provide a clear explanation of why the changes are needed
 If you include code examples, use proper markdown code blocks with language specification.
 `;
 
-    const messages = [
+    const contents = [
       {
         role: "user",
         parts: [
@@ -227,20 +219,16 @@ If you include code examples, use proper markdown code blocks with language spec
       }
     ];
 
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${params.model || this.defaultModels.debugging}:generateContent?key=${client.apiKey}`,
-      {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4000
-        }
-      },
-      { signal: params.signal }
-    );
+    const response = await client.models.generateContent({
+      model: params.model || this.defaultModels.debugging,
+      contents,
+      config: {
+        temperature: 0.2,
+        maxOutputTokens: 4000
+      }
+    });
 
-    const responseData = response.data as GeminiResponse;
-    const responseText = responseData.candidates[0].content.parts[0].text;
+    const responseText = response.text;
     return this.parseDebugResponse(responseText);
   }
 

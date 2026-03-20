@@ -5,7 +5,7 @@ import { OpenAI } from 'openai';
 export class ByteDanceProvider extends BaseModelProvider {
   name = 'bytedance';
   displayName = 'ByteDance';
-  apiKeyPattern = /^[a-zA-Z0-9]{32}$/;
+  apiKeyPattern = /^[a-zA-Z0-9-]{36}$/;
   defaultModels = {
     extraction: 'doubao-seed-1-6-flash-250615',
     solution: 'doubao-seed-1-6-flash-250615',
@@ -30,16 +30,17 @@ export class ByteDanceProvider extends BaseModelProvider {
     }
   }
 
+  protected async createClient(apiKey: string): Promise<OpenAI> {
+    return new OpenAI({ 
+      apiKey,
+      baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+      timeout: 60000,
+      maxRetries: 2
+    });
+  }
+
   async getClient(apiKey: string): Promise<OpenAI> {
-    if (!this.client) {
-      this.client = new OpenAI({ 
-        apiKey,
-        baseURL: "https://ark.cn-beijing.volces.com/api/v3",
-        timeout: 60000,
-        maxRetries: 2
-      });
-    }
-    return this.client;
+    return super.getClient(apiKey);
   }
 
   async extractProblemInfo(params: {

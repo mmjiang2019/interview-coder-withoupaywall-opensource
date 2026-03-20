@@ -1,6 +1,7 @@
 // OpenAIProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
+import { modelConfigManager } from '../config/ModelConfigManager';
 
 export class OpenAIProvider extends BaseModelProvider {
   name = 'openai';
@@ -47,7 +48,9 @@ export class OpenAIProvider extends BaseModelProvider {
     example_input?: string;
     example_output?: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const messages = [
       {
         role: "system" as const, 
@@ -96,7 +99,9 @@ export class OpenAIProvider extends BaseModelProvider {
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const promptText = `
 Generate a detailed solution for the following coding problem:
 
@@ -163,7 +168,9 @@ Your solution should be efficient, well-commented, and handle edge cases.
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
 

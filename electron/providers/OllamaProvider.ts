@@ -30,16 +30,17 @@ export class OllamaProvider extends BaseModelProvider {
     }
   }
 
+  protected async createClient(apiKey: string): Promise<OpenAI> {
+    return new OpenAI({ 
+      apiKey,
+      baseURL: "http://localhost:11434/v1",
+      timeout: 60000,
+      maxRetries: 2
+    });
+  }
+
   async getClient(apiKey: string): Promise<OpenAI> {
-    if (!this.client) {
-      this.client = new OpenAI({ 
-        apiKey,
-        baseURL: "http://localhost:11434/v1",
-        timeout: 60000,
-        maxRetries: 2
-      });
-    }
-    return this.client;
+    return super.getClient(apiKey);
   }
 
   async extractProblemInfo(params: {

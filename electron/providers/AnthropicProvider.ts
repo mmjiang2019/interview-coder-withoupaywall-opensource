@@ -1,6 +1,7 @@
 // AnthropicProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import Anthropic from '@anthropic-ai/sdk';
+import { modelConfigManager } from '../config/ModelConfigManager';
 
 export class AnthropicProvider extends BaseModelProvider {
   name = 'anthropic';
@@ -34,15 +35,16 @@ export class AnthropicProvider extends BaseModelProvider {
     }
   }
 
+  protected async createClient(apiKey: string): Promise<Anthropic> {
+    return new Anthropic({ 
+      apiKey,
+      timeout: 60000,
+      maxRetries: 2
+    });
+  }
+
   async getClient(apiKey: string): Promise<Anthropic> {
-    if (!this.client) {
-      this.client = new Anthropic({ 
-        apiKey,
-        timeout: 60000,
-        maxRetries: 2
-      });
-    }
-    return this.client;
+    return super.getClient(apiKey);
   }
 
   async extractProblemInfo(params: {
@@ -56,7 +58,10 @@ export class AnthropicProvider extends BaseModelProvider {
     example_input?: string;
     example_output?: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
+    // Note: In a real implementation, the API key should be passed through params or stored securely
     const messages = [
       {
         role: "user" as const,
@@ -105,7 +110,9 @@ export class AnthropicProvider extends BaseModelProvider {
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const promptText = `
 Generate a detailed solution for the following coding problem:
 
@@ -171,7 +178,9 @@ I need the response in the following format:
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[config.apiProvider];
+    const client = await this.getClient(apiKey);
     const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
 

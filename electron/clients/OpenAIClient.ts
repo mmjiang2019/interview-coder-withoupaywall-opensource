@@ -1,5 +1,5 @@
 import { OpenAI } from "openai";
-import { AIClient, AIClientConfig, ProcessingResult } from "./AIClient";
+import { AIClient, AIClientConfig, ProcessingResult, Screenshot } from "./AIClient";
 
 export class OpenAIClient implements AIClient {
   private client: OpenAI | null = null;
@@ -49,7 +49,7 @@ export class OpenAIClient implements AIClient {
                 text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language is ${language}.`
               },
               ...images.map(data => ({
-                type: "image_url",
+                type: "image_url" as const,
                 image_url: { url: `data:image/png;base64,${data}` }
               }))
             ]
@@ -101,7 +101,7 @@ export class OpenAIClient implements AIClient {
     }
   }
 
-  async processExtraScreenshots(screenshots: Screenshot[], existingInfo: ProcessingResult): Promise<ProcessingResult> {
+  async processExtraScreenshots(screenshots: Array<{ path: string; data: string }>, existingInfo: ProcessingResult): Promise<ProcessingResult> {
     if (!this.client) {
       throw new Error("OpenAI client not initialized");
     }
@@ -122,8 +122,8 @@ export class OpenAIClient implements AIClient {
                 text: `Existing info: ${JSON.stringify(existingInfo)}\nAnalyze these additional screenshots and update the information.`
               },
               ...screenshots.map(screenshot => ({
-                type: "image_url",
-                image_url: { url: `data:image/png;base64,${screenshot.base64}` }
+                type: "image_url" as const,
+                image_url: { url: `data:image/png;base64,${screenshot.data}` }
               }))
             ]
           }

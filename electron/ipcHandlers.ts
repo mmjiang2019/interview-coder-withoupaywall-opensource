@@ -4,17 +4,50 @@ import { ipcMain, shell, dialog } from "electron"
 import { randomBytes } from "crypto"
 import { IIpcHandlerDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
+import { modelConfigManager } from "./config/ModelConfigManager"
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers")
 
   // Configuration handlers
   ipcMain.handle("get-config", () => {
-    return configHelper.loadConfig();
+    const oldConfig = configHelper.loadConfig();
+    const modelConfig = modelConfigManager.getConfig();
+    
+    // Return combined config with model config values
+    return {
+      ...oldConfig,
+      apiProvider: modelConfig.apiProvider,
+      extractionModel: modelConfig.extractionModel,
+      solutionModel: modelConfig.solutionModel,
+      debuggingModel: modelConfig.debuggingModel,
+      apiKey: modelConfig.apiKeys[modelConfig.apiProvider] || oldConfig.apiKey
+    };
   })
 
   ipcMain.handle("update-config", (_event, updates) => {
-    return configHelper.updateConfig(updates);
+    // Update old config helper for backward compatibility
+    const oldConfig = configHelper.updateConfig(updates);
+    
+    // Update new model config manager
+    if (updates.apiProvider) {
+      modelConfigManager.setApiProvider(updates.apiProvider);
+    }
+    if (updates.apiKey) {
+      const provider = updates.apiProvider || oldConfig.apiProvider;
+      modelConfigManager.setApiKey(provider, updates.apiKey);
+    }
+    if (updates.extractionModel) {
+      modelConfigManager.setModel('extraction', updates.extractionModel);
+    }
+    if (updates.solutionModel) {
+      modelConfigManager.setModel('solution', updates.solutionModel);
+    }
+    if (updates.debuggingModel) {
+      modelConfigManager.setModel('debugging', updates.debuggingModel);
+    }
+    
+    return oldConfig;
   })
 
   ipcMain.handle("check-api-key", () => {

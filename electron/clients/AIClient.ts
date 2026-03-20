@@ -1,4 +1,6 @@
-import { Screenshot } from "../types/screenshots"
+import { Screenshot } from "../../src/types/screenshots"
+
+export type { Screenshot };
 
 export interface AIClientConfig {
   apiKey: string;
@@ -20,5 +22,5 @@ export interface AIClient {
   isInitialized(): boolean;
   extractProblemInfo(images: string[], language: string): Promise<ProcessingResult>;
   generateSolutions(problemInfo: ProcessingResult, language: string): Promise<string[]>;
-  processExtraScreenshots(screenshots: Screenshot[], existingInfo: ProcessingResult): Promise<ProcessingResult>;
+  processExtraScreenshots(screenshots: Array<{ path: string; data: string }>, existingInfo: ProcessingResult): Promise<ProcessingResult>;
 }
