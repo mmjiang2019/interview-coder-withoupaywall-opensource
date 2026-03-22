@@ -11,25 +11,51 @@ export class AIClientFactory {
   private clientConfigs: Map<AIProvider, AIClientConfig> = new Map();
 
   private constructor() {
+    console.log("[AIClientFactory] Initializing AIClientFactory singleton");
     // 监听配置变更，自动更新客户端
     modelConfigManager.onConfigChange((config) => {
-      console.log("Config changed, checking for provider switch");
+      console.log("[AIClientFactory] Received config change event");
+      // 获取当前提供者的配置
+    const currentProviderConfig = config.providerConfigs[config.apiProvider] || {
+      apiKey: '',
+      extraction: '',
+      solution: '',
+      debugging: ''
+    };
+    console.log("[AIClientFactory] New config:", {
+      apiProvider: config.apiProvider,
+      extractionModel: currentProviderConfig.extraction,
+      solutionModel: currentProviderConfig.solution,
+      debuggingModel: currentProviderConfig.debugging,
+      language: config.language
+    });
       const previousProvider = this.currentDefaultProvider;
       const newProvider = config.apiProvider;
       
-      // 只有当提供者发生变化时才重置所有客户端
+      // 只有当提供者发生变化时才重置所有客户端并初始化
       if (previousProvider !== newProvider) {
-        console.log(`Provider changed from ${previousProvider} to ${newProvider}, resetting clients`);
+        console.log(`[AIClientFactory] Provider changed from ${previousProvider} to ${newProvider}, resetting clients`);
         this.resetAllClients();
+        // 自动初始化默认模型的客户端
+        console.log("[AIClientFactory] Initializing default client for new provider:", newProvider);
+        this.initializeDefaultClient(config);
+      } else {
+        console.log(`[AIClientFactory] Provider unchanged: ${newProvider}`);
+        // 检查客户端是否存在，如果不存在则初始化
+        if (!this.hasClient(newProvider)) {
+          console.log(`[AIClientFactory] Client for ${newProvider} does not exist, initializing`);
+          this.initializeDefaultClient(config);
+        } else {
+          console.log(`[AIClientFactory] Client for ${newProvider} already exists, skipping initialization`);
+        }
       }
-      
-      // 自动初始化默认模型的客户端
-      this.initializeDefaultClient(config);
     });
     
     // 初始化默认模型的客户端
+    console.log("[AIClientFactory] Initializing default client on startup");
     const config = modelConfigManager.getConfig();
     this.initializeDefaultClient(config);
+    console.log("[AIClientFactory] AIClientFactory initialization completed");
   }
   
   // 跟踪当前默认提供者
@@ -38,18 +64,25 @@ export class AIClientFactory {
   private initializeDefaultClient(config: any): void {
     try {
       const defaultProvider = config.apiProvider;
+      console.log(`[AIClientFactory] Initializing default client for provider: ${defaultProvider}`);
       if (defaultProvider) {
         // 更新当前默认提供者
+        console.log(`[AIClientFactory] Updating current default provider to: ${defaultProvider}`);
         this.currentDefaultProvider = defaultProvider;
         
         // 只有当客户端不存在时才初始化
         if (!this.hasClient(defaultProvider)) {
+          console.log(`[AIClientFactory] Client for ${defaultProvider} does not exist, creating and initializing`);
           this.getClient(defaultProvider);
-          console.log(`${defaultProvider} client initialized successfully`);
+          console.log(`[AIClientFactory] ${defaultProvider} client initialized successfully`);
+        } else {
+          console.log(`[AIClientFactory] Client for ${defaultProvider} already exists, skipping initialization`);
         }
+      } else {
+        console.log("[AIClientFactory] No default provider specified in config");
       }
     } catch (error) {
-      console.error("Failed to initialize default client:", error);
+      console.error("[AIClientFactory] Failed to initialize default client:", error);
     }
   }
 
@@ -61,15 +94,22 @@ export class AIClientFactory {
   }
 
   public getClient(provider: AIProvider): AIClient {
+    console.log(`[AIClientFactory] Getting client for provider: ${provider}`);
     const client = this.clients.get(provider);
     if (!client) {
+      console.log(`[AIClientFactory] Client not found for ${provider}, creating new client`);
       const newClient = this.createClient(provider);
+      console.log(`[AIClientFactory] Created new client for ${provider}`);
       this.clients.set(provider, newClient);
       // 从配置管理器获取配置并初始化
+      console.log(`[AIClientFactory] Initializing client from config for ${provider}`);
       this.initializeClientFromConfig(provider, newClient);
+      console.log(`[AIClientFactory] Client initialization completed for ${provider}`);
       return newClient;
+    } else {
+      console.log(`[AIClientFactory] Client found for ${provider}, returning existing instance`);
+      return client;
     }
-    return client;
   }
 
   private createClient(provider: AIProvider): AIClient {

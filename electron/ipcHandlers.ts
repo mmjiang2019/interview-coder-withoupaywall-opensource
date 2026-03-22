@@ -33,35 +33,45 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     // Update old config helper for backward compatibility
     const oldConfig = configHelper.updateConfig(updates);
     
-    // Update new model config manager
+    // 构建完整的更新对象
+    const configUpdates: any = {};
+    
+    // 添加API提供者更新
     if (updates.apiProvider) {
-      modelConfigManager.setApiProvider(updates.apiProvider);
+      configUpdates.apiProvider = updates.apiProvider;
     }
-    if (updates.apiKey) {
-      const provider = updates.apiProvider || oldConfig.apiProvider;
-      modelConfigManager.setApiKey(provider, updates.apiKey);
-    }
+    
+    // 添加API key更新
     if (updates.apiKeys) {
-      // 更新所有API key
-      Object.entries(updates.apiKeys).forEach(([provider, apiKey]) => {
-        modelConfigManager.setApiKey(provider as any, apiKey as string);
-      });
+      configUpdates.apiKeys = updates.apiKeys;
+    } else if (updates.apiKey) {
+      const provider = updates.apiProvider || oldConfig.apiProvider;
+      configUpdates.apiKeys = { ...modelConfigManager.getConfig().apiKeys };
+      configUpdates.apiKeys[provider] = updates.apiKey;
     }
+    
+    // 添加模型更新
     if (updates.extractionModel) {
-      modelConfigManager.setModel('extraction', updates.extractionModel);
+      configUpdates.extractionModel = updates.extractionModel;
     }
     if (updates.solutionModel) {
-      modelConfigManager.setModel('solution', updates.solutionModel);
+      configUpdates.solutionModel = updates.solutionModel;
     }
     if (updates.debuggingModel) {
-      modelConfigManager.setModel('debugging', updates.debuggingModel);
+      configUpdates.debuggingModel = updates.debuggingModel;
     }
+    
+    // 添加其他更新
     if (updates.language) {
-      modelConfigManager.setLanguage(updates.language);
+      configUpdates.language = updates.language;
     }
     if (updates.languages) {
-      // 更新编程语言列表
-      modelConfigManager.updateConfig({ languages: updates.languages });
+      configUpdates.languages = updates.languages;
+    }
+    
+    // 一次性更新所有配置，减少配置变更事件的数量
+    if (Object.keys(configUpdates).length > 0) {
+      modelConfigManager.updateConfig(configUpdates);
     }
     
     return oldConfig;

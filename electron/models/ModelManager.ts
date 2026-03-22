@@ -284,11 +284,23 @@ export class ModelManager {
     const config = modelConfigManager.getConfig();
     const provider = config.apiProvider;
     
+    // 检查提供者是否变化
+    if (this.currentProvider === provider) {
+      console.log(`[ModelManager] Provider unchanged: ${provider}, skipping model update`);
+      return;
+    }
+    
+    // 更新当前提供者
+    this.currentProvider = provider;
+    
     // 这里可以添加逻辑，根据当前提供者动态获取可用模型
     // 例如，调用 API 获取提供者的模型列表
     
-    console.log(`Updated models for provider: ${provider}`);
+    console.log(`[ModelManager] Updated models for provider: ${provider}`);
   }
+  
+  // 跟踪当前提供者
+  private currentProvider: AIProvider | null = null;
 
   /**
    * 导出模型配置

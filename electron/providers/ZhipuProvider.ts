@@ -9,9 +9,9 @@ export class ZhipuProvider extends BaseModelProvider {
   displayName = 'Zhipu AI';
   apiKeyPattern = /^[0-9a-z]{32}\.[0-9a-zA-Z]{16}$/;
   defaultModels = {
-    extraction: 'glm-4-flash',
-    solution: 'glm-4-flash',
-    debugging: 'glm-4-flash'
+    extraction: 'glm-4.7-flash',
+    solution: 'glm-4.7-flash',
+    debugging: 'glm-4.7-flash'
   };
 
   protected async createClient(apiKey: string): Promise<OpenAI> {
@@ -58,6 +58,11 @@ export class ZhipuProvider extends BaseModelProvider {
           id: 'glm-5',
           name: 'GLM-5',
           description: 'Latest GLM model with enhanced capabilities'
+        },
+        {
+          id: 'glm-4.7-flash',
+          name: 'GLM-4.7 Flash',
+          description: 'Fast and efficient GLM model'
         },
         {
           id: 'glm-4-flash',

@@ -29,7 +29,7 @@ type ModelCategory = {
   geminiModels: AIModel[];
   anthropicModels: AIModel[];
   ollamaModels: AIModel[];
-  byteDanceModels: AIModel[];
+  bytedanceModels: AIModel[];
   zhipuModels: AIModel[];
 };
 
@@ -102,7 +102,7 @@ const modelCategories: ModelCategory[] = [
         description: "Best overall performance for problem extraction"
       }
     ],
-    byteDanceModels: [
+    bytedanceModels: [
       {
         id: "doubao-seed-1-6-flash-250615",
         name: "doubao-seed-1-6-flash-250615",
@@ -224,7 +224,7 @@ const modelCategories: ModelCategory[] = [
         description: "Balanced performance and speed"
       }
     ],
-    byteDanceModels: [
+    bytedanceModels: [
       {
         id: "doubao-seed-1-6-flash-250615",
         name: "doubao-seed-1-6-flash-250615",
@@ -346,7 +346,7 @@ const modelCategories: ModelCategory[] = [
         description: "Balanced performance and speed"
       }
     ],
-    byteDanceModels: [
+    bytedanceModels: [
       {
         id: "doubao-seed-1-6-flash-250615",
         name: "doubao-seed-1-6-flash-250615",
@@ -505,6 +505,12 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel?: string;
         debuggingModel?: string;
         apiKeys?: Record<APIProvider, string>;
+        providerConfigs?: Record<APIProvider, {
+          apiKey: string;
+          extraction: string;
+          solution: string;
+          debugging: string;
+        }>;
       }
 
       window.electronAPI
@@ -518,11 +524,23 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             bytedance: "",
             zhipu: ""
           });
-          setApiKey(config.apiKey || "");
-          setApiProvider(config.apiProvider || "openai");
-          setExtractionModel(config.extractionModel || "gpt-4o");
-          setSolutionModel(config.solutionModel || "gpt-4o");
-          setDebuggingModel(config.debuggingModel || "gpt-4o");
+          const currentProvider = config.apiProvider || "openai";
+          setApiProvider(currentProvider);
+          
+          // 优先从providerConfigs获取API key和模型设置
+          if (config.providerConfigs && config.providerConfigs[currentProvider]) {
+            const providerConfig = config.providerConfigs[currentProvider];
+            setApiKey(providerConfig.apiKey || "");
+            setExtractionModel(providerConfig.extraction || "gpt-4o");
+            setSolutionModel(providerConfig.solution || "gpt-4o");
+            setDebuggingModel(providerConfig.debugging || "gpt-4o");
+          } else {
+            // 兼容旧格式
+            setApiKey(config.apiKey || "");
+            setExtractionModel(config.extractionModel || "gpt-4o");
+            setSolutionModel(config.solutionModel || "gpt-4o");
+            setDebuggingModel(config.debuggingModel || "gpt-4o");
+          }
         })
         .catch((error: unknown) => {
           console.error("Failed to load config:", error);
@@ -540,8 +558,80 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     // 加载对应提供者的API key
     setApiKey(apiKeys[provider] || "");
     
-    // 保持当前模型选择，不重置为默认值
-    // 这样可以确保模型切换时，之前选择的模型不会丢失
+    // 从配置中获取该provider对应的模型设置
+    window.electronAPI
+      .getConfig()
+      .then((config: any) => {
+        // 优先使用新的providerConfigs结构
+        let providerModelSettings: { extraction?: string; solution?: string; debugging?: string } = {};
+        if (config.providerConfigs && config.providerConfigs[provider]) {
+          providerModelSettings = config.providerConfigs[provider];
+        } else if (config.providerModels && config.providerModels[provider]) {
+          // 兼容旧的providerModels结构
+          providerModelSettings = config.providerModels[provider];
+        }
+        
+        // 更新模型选择为该provider对应的模型设置，如果没有则使用默认模型
+        modelCategories.forEach(category => {
+          let modelId = "";
+          
+          // 获取对应provider的模型列表，与渲染部分保持一致的逻辑
+          const models = 
+            provider === "openai" ? category.openaiModels : 
+            provider === "gemini" ? category.geminiModels :
+            provider === "ollama" ? category.ollamaModels :
+            provider === "bytedance" ? category.bytedanceModels :
+            provider === "zhipu" ? category.zhipuModels :
+            category.anthropicModels;
+          
+          // 优先使用保存的模型设置
+          if (category.key === 'extractionModel') {
+            modelId = providerModelSettings.extraction || models[0]?.id || "gpt-4o";
+            setExtractionModel(modelId);
+          } else if (category.key === 'solutionModel') {
+            modelId = providerModelSettings.solution || models[0]?.id || "gpt-4o";
+            setSolutionModel(modelId);
+          } else if (category.key === 'debuggingModel') {
+            modelId = providerModelSettings.debugging || models[0]?.id || "gpt-4o";
+            setDebuggingModel(modelId);
+          }
+        });
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load config for provider change:", error);
+        // 出错时使用默认模型
+        modelCategories.forEach(category => {
+          let defaultModelId = "";
+          switch (provider) {
+            case "openai":
+              defaultModelId = category.openaiModels[0]?.id || "gpt-4o";
+              break;
+            case "gemini":
+              defaultModelId = category.geminiModels[0]?.id || "gemini-1.5-pro";
+              break;
+            case "anthropic":
+              defaultModelId = category.anthropicModels[0]?.id || "claude-3-7-sonnet-20250219";
+              break;
+            case "ollama":
+              defaultModelId = category.ollamaModels[0]?.id || "qwen2.5-coder:3b";
+              break;
+            case "bytedance":
+              defaultModelId = category.bytedanceModels[0]?.id || "doubao-seed-1-6-flash-250615";
+              break;
+            case "zhipu":
+              defaultModelId = category.zhipuModels[0]?.id || "glm-5";
+              break;
+          }
+          
+          if (category.key === 'extractionModel') {
+            setExtractionModel(defaultModelId);
+          } else if (category.key === 'solutionModel') {
+            setSolutionModel(defaultModelId);
+          } else if (category.key === 'debuggingModel') {
+            setDebuggingModel(defaultModelId);
+          }
+        });
+      });
   };
 
   // Handle API key change
@@ -563,6 +653,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         [apiProvider]: apiKey
       };
       
+      // 直接使用旧格式更新，ModelConfigManager会处理转换
       const result = await window.electronAPI.updateConfig({
         apiKey,
         apiProvider,
@@ -848,7 +939,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 apiProvider === "openai" ? category.openaiModels : 
                 apiProvider === "gemini" ? category.geminiModels :
                 apiProvider === "ollama" ? category.ollamaModels :
-                apiProvider === "bytedance" ? category.byteDanceModels :
+                apiProvider === "bytedance" ? category.bytedanceModels :
                 apiProvider === "zhipu" ? category.zhipuModels :
                 category.anthropicModels;
               

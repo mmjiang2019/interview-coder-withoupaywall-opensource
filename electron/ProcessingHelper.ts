@@ -87,8 +87,14 @@ export class ProcessingHelper {
       const config = modelConfigManager.getConfig();
       const provider = ModelProviderRegistry.getInstance().getProvider(config.apiProvider);
       
+      // 检查提供者是否变化
+      if (this.currentProvider === config.apiProvider && this.currentClient) {
+        console.log(`[ProcessingHelper] Client for ${config.apiProvider} already initialized, skipping`);
+        return;
+      }
+      
       if (!provider) {
-        console.warn(`Unknown provider: ${config.apiProvider}`);
+        console.warn(`[ProcessingHelper] Unknown provider: ${config.apiProvider}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
@@ -97,7 +103,7 @@ export class ProcessingHelper {
       // Validate API key before initializing client
       const apiKey = config.apiKeys[config.apiProvider];
       if (!apiKey) {
-        console.warn(`No API key found for ${provider.displayName}`);
+        console.warn(`[ProcessingHelper] No API key found for ${provider.displayName}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
@@ -105,17 +111,18 @@ export class ProcessingHelper {
       
       const validation = await provider.validateApiKey(apiKey);
       if (!validation.valid) {
-        console.warn(`Invalid API key for ${provider.displayName}: ${validation.error}`);
+        console.warn(`[ProcessingHelper] Invalid API key for ${provider.displayName}: ${validation.error}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
       }
       
+      console.log(`[ProcessingHelper] Initializing client for ${provider.displayName}`);
       this.currentClient = await provider.getClient(apiKey);
       this.currentProvider = config.apiProvider;
-      console.log(`${provider.displayName} client initialized successfully`);
+      console.log(`[ProcessingHelper] ${provider.displayName} client initialized successfully`);
     } catch (error) {
-      console.error("Failed to initialize AI client:", error);
+      console.error("[ProcessingHelper] Failed to initialize AI client:", error);
       this.currentClient = null;
       this.currentProvider = null;
     }

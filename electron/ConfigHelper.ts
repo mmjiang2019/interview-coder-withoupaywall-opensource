@@ -86,7 +86,7 @@ export class ConfigHelper extends EventEmitter {
         
         // Ensure apiProvider is a valid value
         if (config.apiProvider !== "openai" && config.apiProvider !== "gemini"  && config.apiProvider !== "anthropic" && 
-          config.apiProvider !== "ollama" && config.apiProvider !== "bytedance") {
+          config.apiProvider !== "ollama" && config.apiProvider !== "bytedance" && config.apiProvider !== "zhipu") {
           config.apiProvider = "gemini"; // Default to Gemini if invalid
         }
         
@@ -181,6 +181,10 @@ export class ConfigHelper extends EventEmitter {
           updates.extractionModel = "doubao-seed-1-6-flash-250615";
           updates.solutionModel = "doubao-seed-1-6-flash-250615";
           updates.debuggingModel = "doubao-seed-1-6-flash-250615";
+        } else if (updates.apiProvider === "zhipu") {
+          updates.extractionModel = "glm-4.7-flash";
+          updates.solutionModel = "glm-4.7-flash";
+          updates.debuggingModel = "glm-4.7-flash";
         } else {
           updates.extractionModel = "qwen2.5-it:3b";
           updates.solutionModel = "qwen2.5-it:3b";

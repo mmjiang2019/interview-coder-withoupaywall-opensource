@@ -17,10 +17,12 @@ export interface CustomProvider {
 // 模型配置接口
 export interface ModelConfig {
   apiProvider: AIProvider;
-  apiKeys: Record<AIProvider, string>;
-  extractionModel: string;
-  solutionModel: string;
-  debuggingModel: string;
+  providerConfigs: Record<AIProvider, {
+    apiKey: string;
+    extraction: string;
+    solution: string;
+    debugging: string;
+  }>;
   language: string;
   languages: string[];
   timeout: number;
@@ -54,17 +56,44 @@ export class ModelConfigManager {
   private getDefaultConfig(): ModelConfig {
     return {
       apiProvider: 'openai',
-      apiKeys: {
-        openai: '',
-        anthropic: '',
-        gemini: '',
-        ollama: '',
-        bytedance: '',
-        zhipu: ''
+      providerConfigs: {
+        openai: {
+          apiKey: '',
+          extraction: 'gpt-4o',
+          solution: 'gpt-4o',
+          debugging: 'gpt-4o'
+        },
+        anthropic: {
+          apiKey: '',
+          extraction: 'claude-3-7-sonnet-20250219',
+          solution: 'claude-3-7-sonnet-20250219',
+          debugging: 'claude-3-7-sonnet-20250219'
+        },
+        gemini: {
+          apiKey: '',
+          extraction: 'gemini-1.5-pro',
+          solution: 'gemini-1.5-pro',
+          debugging: 'gemini-1.5-pro'
+        },
+        ollama: {
+          apiKey: '',
+          extraction: 'qwen2.5-coder:3b',
+          solution: 'qwen2.5-coder:3b',
+          debugging: 'qwen2.5-coder:3b'
+        },
+        bytedance: {
+          apiKey: '',
+          extraction: 'doubao-seed-1-6-flash-250615',
+          solution: 'doubao-seed-1-6-flash-250615',
+          debugging: 'doubao-seed-1-6-flash-250615'
+        },
+        zhipu: {
+          apiKey: '',
+          extraction: 'glm-5',
+          solution: 'glm-5',
+          debugging: 'glm-5'
+        }
       },
-      extractionModel: 'gpt-4o',
-      solutionModel: 'gpt-4o',
-      debuggingModel: 'gpt-4o',
       language: 'python',
       languages: ['python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'go', 'rust', 'ruby', 'php'],
       timeout: 60000,
@@ -95,6 +124,31 @@ export class ModelConfigManager {
       // 读取配置文件
       if (fs.existsSync(this.configPath)) {
         const savedConfig = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+        // 确保providerConfigs存在，如果不存在则使用默认值
+        const defaultConfig = this.getDefaultConfig();
+        savedConfig.providerConfigs = {
+          ...defaultConfig.providerConfigs,
+          ...savedConfig.providerConfigs
+        };
+        // 处理旧配置结构的迁移
+        if (savedConfig.apiKeys && !savedConfig.providerConfigs) {
+          savedConfig.providerConfigs = defaultConfig.providerConfigs;
+          Object.entries(savedConfig.apiKeys).forEach(([provider, apiKey]) => {
+            if (savedConfig.providerConfigs[provider as AIProvider]) {
+              savedConfig.providerConfigs[provider as AIProvider].apiKey = apiKey;
+            }
+          });
+        }
+        if (savedConfig.providerModels && !savedConfig.providerConfigs) {
+          Object.entries(savedConfig.providerModels).forEach(([provider, models]) => {
+            if (savedConfig.providerConfigs[provider as AIProvider]) {
+              const typedModels = models as { extraction: string; solution: string; debugging: string };
+              savedConfig.providerConfigs[provider as AIProvider].extraction = typedModels.extraction;
+              savedConfig.providerConfigs[provider as AIProvider].solution = typedModels.solution;
+              savedConfig.providerConfigs[provider as AIProvider].debugging = typedModels.debugging;
+            }
+          });
+        }
         this.config = { ...this.config, ...savedConfig };
       }
     } catch (error) {
@@ -122,38 +176,170 @@ export class ModelConfigManager {
     }
   }
 
-  public getConfig(): ModelConfig {
-    return { ...this.config };
+  public getConfig(): ModelConfig & {
+    apiKey: string;
+    extractionModel: string;
+    solutionModel: string;
+    debuggingModel: string;
+    apiKeys: Record<AIProvider, string>;
+  } {
+    const config = { ...this.config };
+    // 添加前端需要的字段
+    const currentProviderConfig = config.providerConfigs[config.apiProvider];
+    return {
+      ...config,
+      apiKey: currentProviderConfig.apiKey,
+      extractionModel: currentProviderConfig.extraction,
+      solutionModel: currentProviderConfig.solution,
+      debuggingModel: currentProviderConfig.debugging,
+      apiKeys: {
+        openai: config.providerConfigs.openai.apiKey,
+        anthropic: config.providerConfigs.anthropic.apiKey,
+        gemini: config.providerConfigs.gemini.apiKey,
+        ollama: config.providerConfigs.ollama.apiKey,
+        bytedance: config.providerConfigs.bytedance.apiKey,
+        zhipu: config.providerConfigs.zhipu.apiKey
+      }
+    };
   }
 
-  public updateConfig(updates: Partial<ModelConfig>): void {
-    const oldConfig = { ...this.config };
-    this.config = { ...this.config, ...updates };
+  public updateConfig(updates: Partial<ModelConfig> & {
+    apiKey?: string;
+    extractionModel?: string;
+    solutionModel?: string;
+    debuggingModel?: string;
+    apiKeys?: Record<AIProvider, string>;
+  }): void {
+    // 检查是否有实际变更
+    let hasChanges = false;
+    const updatedConfig = { ...this.config };
+    
+    // 处理旧格式的更新
+    if (updates.apiKey !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.apiKey !== updates.apiKey) {
+        currentProviderConfig.apiKey = updates.apiKey;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.extractionModel !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.extraction !== updates.extractionModel) {
+        currentProviderConfig.extraction = updates.extractionModel;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.solutionModel !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.solution !== updates.solutionModel) {
+        currentProviderConfig.solution = updates.solutionModel;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.debuggingModel !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.debugging !== updates.debuggingModel) {
+        currentProviderConfig.debugging = updates.debuggingModel;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.apiKeys !== undefined) {
+      Object.entries(updates.apiKeys).forEach(([provider, apiKey]) => {
+        const providerConfig = { ...updatedConfig.providerConfigs[provider as AIProvider] };
+        if (providerConfig.apiKey !== apiKey) {
+          providerConfig.apiKey = apiKey;
+          updatedConfig.providerConfigs[provider as AIProvider] = providerConfig;
+          hasChanges = true;
+        }
+      });
+    }
+    
+    // 处理新格式的更新
+    if (updates.apiProvider !== undefined && updatedConfig.apiProvider !== updates.apiProvider) {
+      updatedConfig.apiProvider = updates.apiProvider;
+      hasChanges = true;
+    }
+    
+    if (updates.providerConfigs !== undefined) {
+      // 深度比较providerConfigs
+      if (JSON.stringify(updatedConfig.providerConfigs) !== JSON.stringify(updates.providerConfigs)) {
+        updatedConfig.providerConfigs = { ...updates.providerConfigs };
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.language !== undefined && updatedConfig.language !== updates.language) {
+      updatedConfig.language = updates.language;
+      hasChanges = true;
+    }
+    
+    if (updates.languages !== undefined) {
+      if (JSON.stringify(updatedConfig.languages) !== JSON.stringify(updates.languages)) {
+        updatedConfig.languages = [...updates.languages];
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.timeout !== undefined && updatedConfig.timeout !== updates.timeout) {
+      updatedConfig.timeout = updates.timeout;
+      hasChanges = true;
+    }
+    
+    if (updates.maxRetries !== undefined && updatedConfig.maxRetries !== updates.maxRetries) {
+      updatedConfig.maxRetries = updates.maxRetries;
+      hasChanges = true;
+    }
+    
+    if (updates.customProviders !== undefined) {
+      if (JSON.stringify(updatedConfig.customProviders) !== JSON.stringify(updates.customProviders)) {
+        updatedConfig.customProviders = [...updates.customProviders];
+        hasChanges = true;
+      }
+    }
+    
+    if (!hasChanges) {
+      console.log(`[ModelConfigManager] No actual changes in config, skipping update`);
+      return;
+    }
+    
+    console.log(`[ModelConfigManager] Updating config with:`, updates);
+    this.config = updatedConfig;
+    console.log(`[ModelConfigManager] Config updated successfully`);
     this.saveConfig();
+    console.log(`[ModelConfigManager] Config saved to file`);
     this.notifyChangeHandlers();
   }
 
   public setApiProvider(provider: AIProvider): void {
-    this.updateConfig({ apiProvider: provider });
+    this.updateConfig({
+      apiProvider: provider
+    });
   }
 
   public setApiKey(provider: AIProvider, apiKey: string): void {
-    const apiKeys = { ...this.config.apiKeys, [provider]: apiKey };
-    this.updateConfig({ apiKeys });
+    const providerConfigs = { ...this.config.providerConfigs };
+    providerConfigs[provider] = {
+      ...providerConfigs[provider],
+      apiKey
+    };
+    this.updateConfig({ providerConfigs });
   }
 
   public setModel(type: 'extraction' | 'solution' | 'debugging', model: string): void {
-    switch (type) {
-      case 'extraction':
-        this.updateConfig({ extractionModel: model });
-        break;
-      case 'solution':
-        this.updateConfig({ solutionModel: model });
-        break;
-      case 'debugging':
-        this.updateConfig({ debuggingModel: model });
-        break;
-    }
+    const providerConfigs = { ...this.config.providerConfigs };
+    providerConfigs[this.config.apiProvider] = {
+      ...providerConfigs[this.config.apiProvider],
+      [type]: model
+    };
+    this.updateConfig({ providerConfigs });
   }
 
   public setLanguage(language: string): void {
@@ -207,19 +393,31 @@ export class ModelConfigManager {
   }
 
   public onConfigChange(handler: ConfigChangeHandler): void {
+    const handlerId = Math.random().toString(36).substr(2, 9);
+    console.log(`[ModelConfigManager] Registering config change handler with ID: ${handlerId}`);
+    // 为了调试，我们可以给handler添加一个id属性
+    (handler as any)._handlerId = handlerId;
     this.changeHandlers.push(handler);
+    console.log(`[ModelConfigManager] Total registered handlers: ${this.changeHandlers.length}`);
   }
 
   public offConfigChange(handler: ConfigChangeHandler): void {
+    const handlerId = (handler as any)._handlerId || 'unknown';
+    console.log(`[ModelConfigManager] Removing config change handler with ID: ${handlerId}`);
     this.changeHandlers = this.changeHandlers.filter(h => h !== handler);
+    console.log(`[ModelConfigManager] Total registered handlers after removal: ${this.changeHandlers.length}`);
   }
 
   private notifyChangeHandlers(): void {
-    this.changeHandlers.forEach(handler => {
+    console.log(`[ModelConfigManager] Notifying ${this.changeHandlers.length} config change handlers`);
+    this.changeHandlers.forEach((handler, index) => {
+      const handlerId = (handler as any)._handlerId || `handler_${index}`;
+      console.log(`[ModelConfigManager] Notifying handler ${handlerId} (${index + 1}/${this.changeHandlers.length})`);
       try {
         handler(this.getConfig());
+        console.log(`[ModelConfigManager] Handler ${handlerId} notified successfully`);
       } catch (error) {
-        console.error('Error in config change handler:', error);
+        console.error(`[ModelConfigManager] Error in config change handler ${handlerId}:`, error);
       }
     });
   }
@@ -235,19 +433,19 @@ export class ModelConfigManager {
     }
     
     // 验证 API 密钥
-    const currentApiKey = this.config.apiKeys[this.config.apiProvider];
-    if (!currentApiKey) {
+    const currentProviderConfig = this.config.providerConfigs[this.config.apiProvider];
+    if (!currentProviderConfig.apiKey) {
       errors.push(`No API key set for ${this.config.apiProvider}`);
     }
     
     // 验证模型名称
-    if (!this.config.extractionModel) {
+    if (!currentProviderConfig.extraction) {
       errors.push('Extraction model is required');
     }
-    if (!this.config.solutionModel) {
+    if (!currentProviderConfig.solution) {
       errors.push('Solution model is required');
     }
-    if (!this.config.debuggingModel) {
+    if (!currentProviderConfig.debugging) {
       errors.push('Debugging model is required');
     }
     
