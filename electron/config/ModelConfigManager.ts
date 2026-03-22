@@ -1,5 +1,19 @@
 import { AIProvider } from '../clients/AIClientFactory';
 
+// 自定义提供者接口
+export interface CustomProvider {
+  name: string;
+  displayName: string;
+  apiKey: string;
+  baseUrl: string;
+  apiKeyPattern: string;
+  defaultModels: {
+    extraction: string;
+    solution: string;
+    debugging: string;
+  };
+}
+
 // 模型配置接口
 export interface ModelConfig {
   apiProvider: AIProvider;
@@ -10,6 +24,7 @@ export interface ModelConfig {
   language: string;
   timeout: number;
   maxRetries: number;
+  customProviders: CustomProvider[];
 }
 
 // 配置变更事件类型
@@ -50,7 +65,8 @@ export class ModelConfigManager {
       debuggingModel: 'gpt-4o',
       language: 'python',
       timeout: 60000,
-      maxRetries: 2
+      maxRetries: 2,
+      customProviders: []
     };
   }
 
@@ -147,6 +163,25 @@ export class ModelConfigManager {
 
   public setMaxRetries(maxRetries: number): void {
     this.updateConfig({ maxRetries });
+  }
+
+  // Custom provider management
+  public addCustomProvider(provider: CustomProvider): void {
+    const customProviders = [...this.config.customProviders, provider];
+    this.updateConfig({ customProviders });
+  }
+
+  public removeCustomProvider(name: string): void {
+    const customProviders = this.config.customProviders.filter(p => p.name !== name);
+    this.updateConfig({ customProviders });
+  }
+
+  public getCustomProviders(): CustomProvider[] {
+    return [...this.config.customProviders];
+  }
+
+  public getCustomProvider(name: string): CustomProvider | undefined {
+    return this.config.customProviders.find(p => p.name === name);
   }
 
   public onConfigChange(handler: ConfigChangeHandler): void {

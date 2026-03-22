@@ -3,6 +3,7 @@ export interface ModelProvider {
   name: string;
   displayName: string;
   apiKeyPattern: RegExp;
+  baseUrl?: string;
   defaultModels: {
     extraction: string;
     solution: string;
@@ -11,6 +12,7 @@ export interface ModelProvider {
   
   validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }>;
   getClient(apiKey: string): Promise<any>;
+  getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>>;
 
   // New methods for problem solving and debugging
   extractProblemInfo(params: {
@@ -149,6 +151,8 @@ export abstract class BaseModelProvider implements ModelProvider {
     time_complexity: string;
     space_complexity: string;
   }>;
+
+  abstract getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>>;
 
   /**
    * 获取模型名称

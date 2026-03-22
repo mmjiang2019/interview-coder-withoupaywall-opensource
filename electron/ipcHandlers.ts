@@ -4,7 +4,8 @@ import { ipcMain, shell, dialog } from "electron"
 import { randomBytes } from "crypto"
 import { IIpcHandlerDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
-import { modelConfigManager } from "./config/ModelConfigManager"
+import { modelConfigManager, CustomProvider } from "./config/ModelConfigManager"
+import { ModelProviderRegistry } from "./ModelProviderRegistry"
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers")
@@ -48,6 +49,35 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
     
     return oldConfig;
+  })
+
+  // Custom provider management
+  ipcMain.handle("get-custom-providers", () => {
+    return modelConfigManager.getCustomProviders();
+  })
+
+  ipcMain.handle("add-custom-provider", (_event, provider: CustomProvider) => {
+    modelConfigManager.addCustomProvider(provider);
+    const registry = ModelProviderRegistry.getInstance();
+    registry.registerCustomProvider(provider);
+    return provider;
+  })
+
+  ipcMain.handle("remove-custom-provider", (_event, name: string) => {
+    modelConfigManager.removeCustomProvider(name);
+    const registry = ModelProviderRegistry.getInstance();
+    registry.unregisterProvider(name);
+    return { success: true };
+  })
+
+  // Model list management
+  ipcMain.handle("get-models", async (_event, providerName: string, apiKey: string) => {
+    const registry = ModelProviderRegistry.getInstance();
+    const provider = registry.getProvider(providerName);
+    if (!provider) {
+      throw new Error(`Provider ${providerName} not found`);
+    }
+    return provider.getModels(apiKey);
   })
 
   ipcMain.handle("check-api-key", () => {
