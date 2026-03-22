@@ -24,55 +24,54 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   const tooltipRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
 
-  // Extract the repeated language selection logic into a separate function
-  const extractLanguagesAndUpdate = (direction?: 'next' | 'prev') => {
-    // Create a hidden instance of LanguageSelector to extract languages
-    const hiddenRenderContainer = document.createElement('div');
-    hiddenRenderContainer.style.position = 'absolute';
-    hiddenRenderContainer.style.left = '-9999px';
-    document.body.appendChild(hiddenRenderContainer);
-    
-    // Create a root and render the LanguageSelector temporarily
-    const root = createRoot(hiddenRenderContainer);
-    root.render(
-      <LanguageSelector 
-        currentLanguage={currentLanguage} 
-        setLanguage={() => {}}
-      />
-    );
-    
-    // Use a small delay to ensure the component has rendered
-    // 50ms is generally enough for React to complete a render cycle
-    setTimeout(() => {
-      // Extract options from the rendered select element
-      const selectElement = hiddenRenderContainer.querySelector('select');
-      if (selectElement) {
-        const options = Array.from(selectElement.options);
-        const values = options.map(opt => opt.value);
-        
-        // Find current language index
-        const currentIndex = values.indexOf(currentLanguage);
-        let newIndex = currentIndex;
-        
-        if (direction === 'prev') {
-          // Go to previous language
-          newIndex = (currentIndex - 1 + values.length) % values.length;
-        } else {
-          // Default to next language
-          newIndex = (currentIndex + 1) % values.length;
+  // Language selection state
+  const [languages, setLanguages] = useState<string[]>([
+    'python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'go', 'rust', 'ruby', 'php'
+  ]);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [languageSearch, setLanguageSearch] = useState("");
+  const [newLanguage, setNewLanguage] = useState("");
+  const [showAddLanguage, setShowAddLanguage] = useState(false);
+  const languageRef = useRef<HTMLDivElement>(null);
+
+  // Load languages from config
+  useEffect(() => {
+    const loadLanguages = async () => {
+      try {
+        const config = await window.electronAPI.getConfig();
+        if (config && config.languages) {
+          setLanguages(config.languages);
         }
-        
-        if (newIndex !== currentIndex) {
-          setLanguage(values[newIndex]);
-          window.electronAPI.updateConfig({ language: values[newIndex] });
-        }
+      } catch (error) {
+        console.error("Failed to load languages:", error);
       }
-      
-      // Clean up
-      root.unmount();
-      document.body.removeChild(hiddenRenderContainer);
-    }, 50);
+    };
+    loadLanguages();
+  }, []);
+
+  // Handle language change
+  const handleLanguageChange = (lang: string) => {
+    setLanguage(lang);
+    setShowLanguageDropdown(false);
+    window.electronAPI.updateConfig({ language: lang });
   };
+
+  // Handle add language
+  const handleAddLanguage = async () => {
+    if (newLanguage && !languages.includes(newLanguage)) {
+      const updatedLanguages = [...languages, newLanguage];
+      setLanguages(updatedLanguages);
+      setNewLanguage("");
+      setShowAddLanguage(false);
+      // Save to config
+      await window.electronAPI.updateConfig({ languages: updatedLanguages });
+    }
+  };
+
+  // Filter languages based on search input
+  const filteredLanguages = languages.filter(lang => 
+    lang.toLowerCase().includes(languageSearch.toLowerCase())
+  );
 
   useEffect(() => {
     let tooltipHeight = 0
@@ -81,6 +80,20 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     }
     onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
   }, [isTooltipVisible])
+
+  // Close language dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (languageRef.current && !languageRef.current.contains(event.target as Node)) {
+        setShowLanguageDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -430,29 +443,82 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
 
                     {/* Separator and Log Out */}
                     <div className="pt-3 mt-3 border-t border-white/10">
-                      {/* Simplified Language Selector */}
+                      {/* Language Selection */}
                       <div className="mb-3 px-2">
-                        <div 
-                          className="flex items-center justify-between cursor-pointer hover:bg-white/10 rounded px-2 py-1 transition-colors"
-                          onClick={() => extractLanguagesAndUpdate('next')}
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-                              extractLanguagesAndUpdate('prev');
-                            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-                              extractLanguagesAndUpdate('next');
-                            }
-                          }}
-                        >
-                          <span className="text-[11px] text-white/70">Language</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-white/90">{currentLanguage}</span>
-                            <div className="text-white/40 text-[8px]">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                                <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
-                              </svg>
+                        <div ref={languageRef} className="relative">
+                          <div 
+                            className="flex items-center justify-between cursor-pointer hover:bg-white/10 rounded px-2 py-1 transition-colors"
+                            onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                          >
+                            <span className="text-[11px] text-white/70">Language</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-white/90">{currentLanguage}</span>
+                              <div className={`text-white/40 text-[8px] transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                                  <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
+                                </svg>
+                              </div>
                             </div>
                           </div>
+                          {showLanguageDropdown && (
+                            <div className="absolute top-full left-0 mt-1 w-60 bg-black border border-white/10 rounded-lg shadow-lg p-2 z-50">
+                              <div className="mb-2">
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="Search languages..."
+                                    value={languageSearch}
+                                    onChange={(e) => setLanguageSearch(e.target.value)}
+                                    className="w-full bg-black/50 border border-white/10 text-white text-xs rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/20"
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-40 overflow-y-auto">
+                                {filteredLanguages.map((lang) => (
+                                  <div
+                                    key={lang}
+                                    className={`p-2 hover:bg-white/10 rounded cursor-pointer text-xs ${currentLanguage === lang ? 'bg-white/10' : ''}`}
+                                    onClick={() => handleLanguageChange(lang)}
+                                  >
+                                    {lang}
+                                  </div>
+                                ))}
+                                {showAddLanguage ? (
+                                  <div className="p-2 border-t border-white/10 mt-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Enter new language"
+                                      value={newLanguage}
+                                      onChange={(e) => setNewLanguage(e.target.value)}
+                                      className="w-full bg-black/50 border border-white/10 text-white text-xs rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/20 mb-2"
+                                    />
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => setShowAddLanguage(false)}
+                                        className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded py-1"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={handleAddLanguage}
+                                        className="flex-1 bg-white text-black text-xs rounded py-1"
+                                        disabled={!newLanguage}
+                                      >
+                                        Add
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="p-2 hover:bg-white/10 rounded cursor-pointer text-xs text-blue-400 text-center"
+                                    onClick={() => setShowAddLanguage(true)}
+                                  >
+                                    + Add new language
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

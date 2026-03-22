@@ -22,7 +22,10 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       extractionModel: modelConfig.extractionModel,
       solutionModel: modelConfig.solutionModel,
       debuggingModel: modelConfig.debuggingModel,
-      apiKey: modelConfig.apiKeys[modelConfig.apiProvider] || oldConfig.apiKey
+      apiKey: modelConfig.apiKeys[modelConfig.apiProvider] || oldConfig.apiKey,
+      apiKeys: modelConfig.apiKeys,
+      language: modelConfig.language,
+      languages: modelConfig.languages
     };
   })
 
@@ -38,6 +41,12 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       const provider = updates.apiProvider || oldConfig.apiProvider;
       modelConfigManager.setApiKey(provider, updates.apiKey);
     }
+    if (updates.apiKeys) {
+      // 更新所有API key
+      Object.entries(updates.apiKeys).forEach(([provider, apiKey]) => {
+        modelConfigManager.setApiKey(provider as any, apiKey as string);
+      });
+    }
     if (updates.extractionModel) {
       modelConfigManager.setModel('extraction', updates.extractionModel);
     }
@@ -46,6 +55,13 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
     if (updates.debuggingModel) {
       modelConfigManager.setModel('debugging', updates.debuggingModel);
+    }
+    if (updates.language) {
+      modelConfigManager.setLanguage(updates.language);
+    }
+    if (updates.languages) {
+      // 更新编程语言列表
+      modelConfigManager.updateConfig({ languages: updates.languages });
     }
     
     return oldConfig;

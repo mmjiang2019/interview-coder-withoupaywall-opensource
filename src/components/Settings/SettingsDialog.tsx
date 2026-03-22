@@ -482,6 +482,18 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     }
   };
   
+  // 存储所有提供者的API key
+  const [apiKeys, setApiKeys] = useState<Record<APIProvider, string>>({
+    openai: "",
+    anthropic: "",
+    gemini: "",
+    ollama: "",
+    bytedance: "",
+    zhipu: ""
+  });
+
+
+
   // Load current config on dialog open
   useEffect(() => {
     if (open) {
@@ -492,11 +504,20 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         extractionModel?: string;
         solutionModel?: string;
         debuggingModel?: string;
+        apiKeys?: Record<APIProvider, string>;
       }
 
       window.electronAPI
         .getConfig()
         .then((config: Config) => {
+          setApiKeys(config.apiKeys || {
+            openai: "",
+            anthropic: "",
+            gemini: "",
+            ollama: "",
+            bytedance: "",
+            zhipu: ""
+          });
           setApiKey(config.apiKey || "");
           setApiProvider(config.apiProvider || "openai");
           setExtractionModel(config.extractionModel || "gpt-4o");
@@ -516,47 +537,44 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   // Handle API provider change
   const handleProviderChange = (provider: APIProvider) => {
     setApiProvider(provider);
+    // 加载对应提供者的API key
+    setApiKey(apiKeys[provider] || "");
     
-    // Reset models to defaults when changing provider
-    if (provider === "openai") {
-      setExtractionModel("gpt-4o");
-      setSolutionModel("gpt-4o");
-      setDebuggingModel("gpt-4o");
-    } else if (provider === "gemini") {
-      setExtractionModel("gemini-1.5-pro");
-      setSolutionModel("gemini-1.5-pro");
-      setDebuggingModel("gemini-1.5-pro");
-    } else if (provider === "anthropic") {
-      setExtractionModel("claude-3-7-sonnet-20250219");
-      setSolutionModel("claude-3-7-sonnet-20250219");
-      setDebuggingModel("claude-3-7-sonnet-20250219");
-    } else if (provider === "ollama") {
-      setExtractionModel("qwen2.5-it:3b");
-      setSolutionModel("qwen2.5-it:3b");
-      setDebuggingModel("qwen2.5-it:3b");
-    } else if (provider === "bytedance") {
-      setExtractionModel("doubao-seed-1-6-flash-250615");
-      setSolutionModel("doubao-seed-1-6-flash-250615");
-      setDebuggingModel("doubao-seed-1-6-flash-250615");    
-    } else if (provider === "zhipu") {
-      setExtractionModel("glm-4-flash");
-      setSolutionModel("glm-4-flash");
-      setDebuggingModel("glm-4-flash");    
-    }
+    // 保持当前模型选择，不重置为默认值
+    // 这样可以确保模型切换时，之前选择的模型不会丢失
+  };
+
+  // Handle API key change
+  const handleApiKeyChange = (value: string) => {
+    setApiKey(value);
+    // 更新apiKeys状态中的对应提供者的API key
+    setApiKeys(prev => ({
+      ...prev,
+      [apiProvider]: value
+    }));
   };
 
   const handleSave = async () => {
     setIsLoading(true);
     try {
+      // 更新apiKeys对象，将当前API key保存到对应的提供者
+      const updatedApiKeys = {
+        ...apiKeys,
+        [apiProvider]: apiKey
+      };
+      
       const result = await window.electronAPI.updateConfig({
         apiKey,
         apiProvider,
         extractionModel,
         solutionModel,
         debuggingModel,
+        apiKeys: updatedApiKeys
       });
       
       if (result) {
+        // 更新本地apiKeys状态
+        setApiKeys(updatedApiKeys);
         showToast("Success", "Settings saved successfully", "success");
         handleOpenChange(false);
         
@@ -572,6 +590,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setIsLoading(false);
     }
   };
+
+
 
   // Mask API key for display
   const maskApiKey = (key: string) => {
@@ -677,7 +697,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               id="apiKey"
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => handleApiKeyChange(e.target.value)}
               placeholder={
                 apiProvider === "openai" ? "sk-..." : 
                 apiProvider === "gemini" ? "Enter your Gemini API key" :
@@ -815,6 +835,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             </div>
           </div>
           
+
           <div className="space-y-4 mt-4">
             <label className="text-sm font-medium text-white">AI Model Selection</label>
             <p className="text-xs text-white/60 -mt-3 mb-2">

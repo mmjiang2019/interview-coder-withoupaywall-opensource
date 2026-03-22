@@ -3,7 +3,7 @@ import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { modelConfigManager } from '../config/ModelConfigManager';
 
-export type AIProvider = "openai" | "anthropic" | "gemini" | "ollama" | "bytedance";
+export type AIProvider = "openai" | "anthropic" | "gemini" | "ollama" | "bytedance" | "zhipu";
 
 export class AIClientFactory {
   private static instance: AIClientFactory;
@@ -12,9 +12,45 @@ export class AIClientFactory {
 
   private constructor() {
     // 监听配置变更，自动更新客户端
-    modelConfigManager.onConfigChange(() => {
-      this.resetAllClients();
+    modelConfigManager.onConfigChange((config) => {
+      console.log("Config changed, checking for provider switch");
+      const previousProvider = this.currentDefaultProvider;
+      const newProvider = config.apiProvider;
+      
+      // 只有当提供者发生变化时才重置所有客户端
+      if (previousProvider !== newProvider) {
+        console.log(`Provider changed from ${previousProvider} to ${newProvider}, resetting clients`);
+        this.resetAllClients();
+      }
+      
+      // 自动初始化默认模型的客户端
+      this.initializeDefaultClient(config);
     });
+    
+    // 初始化默认模型的客户端
+    const config = modelConfigManager.getConfig();
+    this.initializeDefaultClient(config);
+  }
+  
+  // 跟踪当前默认提供者
+  private currentDefaultProvider: AIProvider | null = null;
+
+  private initializeDefaultClient(config: any): void {
+    try {
+      const defaultProvider = config.apiProvider;
+      if (defaultProvider) {
+        // 更新当前默认提供者
+        this.currentDefaultProvider = defaultProvider;
+        
+        // 只有当客户端不存在时才初始化
+        if (!this.hasClient(defaultProvider)) {
+          this.getClient(defaultProvider);
+          console.log(`${defaultProvider} client initialized successfully`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to initialize default client:", error);
+    }
   }
 
   public static getInstance(): AIClientFactory {
@@ -50,6 +86,9 @@ export class AIClientFactory {
         return new OpenAIClient();
       case "bytedance":
         // For ByteDance, we can use a similar approach to OpenAI with different baseURL
+        return new OpenAIClient();
+      case "zhipu":
+        // For Zhipu, we can use a similar approach to OpenAI with different baseURL
         return new OpenAIClient();
       default:
         throw new Error(`Unknown AI provider: ${provider}`);
@@ -92,6 +131,8 @@ export class AIClientFactory {
         return "http://localhost:11434/api";
       case "bytedance":
         return "https://ark.cn-beijing.volces.com/api/v3";
+      case "zhipu":
+        return "https://open.bigmodel.cn/api/paas/v4";
       default:
         return "https://api.openai.com/v1";
     }

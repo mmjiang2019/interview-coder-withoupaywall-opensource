@@ -22,6 +22,7 @@ export interface ModelConfig {
   solutionModel: string;
   debuggingModel: string;
   language: string;
+  languages: string[];
   timeout: number;
   maxRetries: number;
   customProviders: CustomProvider[];
@@ -58,12 +59,14 @@ export class ModelConfigManager {
         anthropic: '',
         gemini: '',
         ollama: '',
-        bytedance: ''
+        bytedance: '',
+        zhipu: ''
       },
       extractionModel: 'gpt-4o',
       solutionModel: 'gpt-4o',
       debuggingModel: 'gpt-4o',
       language: 'python',
+      languages: ['python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'go', 'rust', 'ruby', 'php'],
       timeout: 60000,
       maxRetries: 2,
       customProviders: []
@@ -165,6 +168,25 @@ export class ModelConfigManager {
     this.updateConfig({ maxRetries });
   }
 
+  // Language management
+  public addLanguage(language: string): void {
+    if (!this.config.languages.includes(language)) {
+      const languages = [...this.config.languages, language];
+      this.updateConfig({ languages });
+    }
+  }
+
+  public removeLanguage(language: string): void {
+    if (this.config.languages.includes(language) && language !== this.config.language) {
+      const languages = this.config.languages.filter(l => l !== language);
+      this.updateConfig({ languages });
+    }
+  }
+
+  public getLanguages(): string[] {
+    return [...this.config.languages];
+  }
+
   // Custom provider management
   public addCustomProvider(provider: CustomProvider): void {
     const customProviders = [...this.config.customProviders, provider];
@@ -207,7 +229,7 @@ export class ModelConfigManager {
     const errors: string[] = [];
     
     // 验证 API 提供者
-    const validProviders: AIProvider[] = ['openai', 'anthropic', 'gemini', 'ollama', 'bytedance'];
+    const validProviders: AIProvider[] = ['openai', 'anthropic', 'gemini', 'ollama', 'bytedance', 'zhipu'];
     if (!validProviders.includes(this.config.apiProvider)) {
       errors.push(`Invalid API provider: ${this.config.apiProvider}`);
     }
