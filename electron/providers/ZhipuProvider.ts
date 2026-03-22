@@ -7,7 +7,7 @@ const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 export class ZhipuProvider extends BaseModelProvider {
   name = 'zhipu';
   displayName = 'Zhipu AI';
-  apiKeyPattern = /^[a-zA-Z0-9-]{32,}$/;
+  apiKeyPattern = /^[0-9a-z]{32}\.[0-9a-zA-Z]{16}$/;
   defaultModels = {
     extraction: 'glm-4-flash',
     solution: 'glm-4-flash',
@@ -48,7 +48,7 @@ export class ZhipuProvider extends BaseModelProvider {
       return models.data.map(model => ({
         id: model.id,
         name: model.id,
-        description: model.description || `Zhipu model: ${model.id}`
+        description: (model as any).description ?? `Zhipu model: ${model.id}`
       }));
     } catch (error) {
       console.error('Error fetching Zhipu models:', error);

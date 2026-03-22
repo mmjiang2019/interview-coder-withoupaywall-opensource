@@ -238,7 +238,7 @@ If you include code examples, use proper markdown code blocks with language spec
       return models.data.map(model => ({
         id: model.id,
         name: model.id,
-        description: model.description || `Ollama model: ${model.id}`
+        description: (model as any).description ?? `Ollama model: ${model.id}`
       }));
     } catch (error) {
       console.error('Error fetching Ollama models:', error);

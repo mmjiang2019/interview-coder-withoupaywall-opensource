@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTrigger,
@@ -427,7 +427,38 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [debuggingModel, setDebuggingModel] = useState("gpt-4o");
   const [isLoading, setIsLoading] = useState(false);
   const [providerSearch, setProviderSearch] = useState("");
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  const [showExtractionModelDropdown, setShowExtractionModelDropdown] = useState(false);
+  const [showSolutionModelDropdown, setShowSolutionModelDropdown] = useState(false);
+  const [showDebuggingModelDropdown, setShowDebuggingModelDropdown] = useState(false);
+  const providerRef = useRef<HTMLDivElement>(null);
+  const extractionModelRef = useRef<HTMLDivElement>(null);
+  const solutionModelRef = useRef<HTMLDivElement>(null);
+  const debuggingModelRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
+
+  // 点击外部关闭弹窗
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (providerRef.current && !providerRef.current.contains(event.target as Node)) {
+        setShowProviderDropdown(false);
+      }
+      if (extractionModelRef.current && !extractionModelRef.current.contains(event.target as Node)) {
+        setShowExtractionModelDropdown(false);
+      }
+      if (solutionModelRef.current && !solutionModelRef.current.contains(event.target as Node)) {
+        setShowSolutionModelDropdown(false);
+      }
+      if (debuggingModelRef.current && !debuggingModelRef.current.contains(event.target as Node)) {
+        setShowDebuggingModelDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Filter providers based on search input
   const filteredProviders = providers.filter(provider => 
@@ -585,37 +616,51 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           {/* API Provider Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-white">API Provider</label>
-            <div className="space-y-2">
-              {/* Provider dropdown with search */}
-              <div className="space-y-2">
-                {/* Search input */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                  <Input
-                    type="text"
-                    placeholder="Search providers..."
-                    value={providerSearch}
-                    onChange={(e) => setProviderSearch(e.target.value)}
-                    className="bg-black/50 border border-white/10 text-white pl-10"
-                  />
-                </div>
-                
-                {/* Provider dropdown */}
-                <div className="relative">
-                  <select
-                    value={apiProvider}
-                    onChange={(e) => handleProviderChange(e.target.value as APIProvider)}
-                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 appearance-none focus:outline-none focus:ring-2 focus:ring-white/20"
-                  >
-                    {filteredProviders.map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name} - {provider.description}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none" />
-                </div>
+            <div ref={providerRef} className="relative">
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+              >
+                <input
+                  type="text"
+                  value={providers.find(p => p.id === apiProvider)?.name || ''}
+                  readOnly
+                  placeholder="Select API provider"
+                  className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+                <ChevronDown className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} />
               </div>
+              {showProviderDropdown && (
+                <div className="absolute z-10 mt-1 w-full bg-black border border-white/10 rounded-lg shadow-lg p-4">
+                  <div className="mb-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                      <Input
+                        type="text"
+                        placeholder="Search providers..."
+                        value={providerSearch}
+                        onChange={(e) => setProviderSearch(e.target.value)}
+                        className="bg-black/50 border border-white/10 text-white pl-10"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {filteredProviders.map((provider) => (
+                      <div
+                        key={provider.id}
+                        className="p-2 hover:bg-white/10 rounded cursor-pointer"
+                        onClick={() => {
+                          handleProviderChange(provider.id as APIProvider);
+                          setShowProviderDropdown(false);
+                        }}
+                      >
+                        <div className="font-medium">{provider.name}</div>
+                        <div className="text-xs text-white/60">{provider.description}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
@@ -807,6 +852,19 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 model.description.toLowerCase().includes(searchFilter.toLowerCase())
               );
               
+              // 为每个模型分类获取对应的弹窗状态和引用
+              const [showDropdown, setShowDropdown] = category.key === 'extractionModel' 
+                ? [showExtractionModelDropdown, setShowExtractionModelDropdown]
+                : category.key === 'solutionModel'
+                ? [showSolutionModelDropdown, setShowSolutionModelDropdown]
+                : [showDebuggingModelDropdown, setShowDebuggingModelDropdown];
+              
+              const modelRef = category.key === 'extractionModel' 
+                ? extractionModelRef
+                : category.key === 'solutionModel'
+                ? solutionModelRef
+                : debuggingModelRef;
+              
               return (
                 <div key={category.key} className="mb-4">
                   <label className="text-sm font-medium text-white mb-1 block">
@@ -814,34 +872,51 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </label>
                   <p className="text-xs text-white/60 mb-2">{category.description}</p>
                   
-                  <div className="space-y-2">
-                    {/* Search input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                      <Input
+                  <div ref={modelRef} className="relative">
+                    <div 
+                      className="relative cursor-pointer"
+                      onClick={() => setShowDropdown(!showDropdown)}
+                    >
+                      <input
                         type="text"
-                        placeholder="Search models..."
-                        value={searchFilter}
-                        onChange={(e) => setSearchFilter(e.target.value)}
-                        className="bg-black/50 border-white/10 text-white pl-10"
+                        value={filteredModels.find(m => m.id === currentValue)?.name || ''}
+                        readOnly
+                        placeholder={`Select ${category.title.toLowerCase()}`}
+                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/20"
                       />
+                      <ChevronDown className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
                     </div>
-                    
-                    {/* Model dropdown */}
-                    <div className="relative">
-                      <select
-                        value={currentValue}
-                        onChange={(e) => setValue(e.target.value)}
-                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 appearance-none focus:outline-none focus:ring-2 focus:ring-white/20"
-                      >
-                        {filteredModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} - {m.description}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none" />
-                    </div>
+                    {showDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-black border border-white/10 rounded-lg shadow-lg p-4">
+                        <div className="mb-3">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                            <Input
+                              type="text"
+                              placeholder="Search models..."
+                              value={searchFilter}
+                              onChange={(e) => setSearchFilter(e.target.value)}
+                              className="bg-black/50 border border-white/10 text-white pl-10"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto">
+                          {filteredModels.map((m) => (
+                            <div
+                              key={m.id}
+                              className="p-2 hover:bg-white/10 rounded cursor-pointer"
+                              onClick={() => {
+                                setValue(m.id);
+                                setShowDropdown(false);
+                              }}
+                            >
+                              <div className="font-medium">{m.name}</div>
+                              <div className="text-xs text-white/60">{m.description}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
