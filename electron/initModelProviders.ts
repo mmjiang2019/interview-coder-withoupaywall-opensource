@@ -5,6 +5,7 @@ import { GeminiProvider } from './providers/GeminiProvider';
 import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { ByteDanceProvider } from './providers/ByteDanceProvider';
+import { ZhipuProvider } from './providers/ZhipuProvider';
 
 export function initializeModelProviders() {
   const registry = ModelProviderRegistry.getInstance();
@@ -15,7 +16,8 @@ export function initializeModelProviders() {
     new GeminiProvider(),
     new AnthropicProvider(),
     new OllamaProvider(),
-    new ByteDanceProvider()
+    new ByteDanceProvider(),
+    new ZhipuProvider()
   ];
 
   providers.forEach(provider => {
@@ -32,5 +34,6 @@ export {
   GeminiProvider,
   AnthropicProvider,
   OllamaProvider,
-  ByteDanceProvider
+  ByteDanceProvider,
+  ZhipuProvider
 }

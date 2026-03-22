@@ -230,5 +230,42 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
+  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    try {
+      const client = await this.getClient(apiKey);
+      // Use OpenAI API to list models
+      const models = await client.models.list();
+      return models.data.map(model => ({
+        id: model.id,
+        name: model.id,
+        description: model.description || `OpenAI model: ${model.id}`
+      }));
+    } catch (error) {
+      console.error('Error fetching OpenAI models:', error);
+      // Return default models on error
+      return [
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          description: 'Latest multimodal model'
+        },
+        {
+          id: 'gpt-4o-mini',
+          name: 'GPT-4o mini',
+          description: 'Smaller and faster version of GPT-4o'
+        },
+        {
+          id: 'gpt-4-turbo',
+          name: 'GPT-4 Turbo',
+          description: 'Powerful model with longer context'
+        },
+        {
+          id: 'gpt-3.5-turbo',
+          name: 'GPT-3.5 Turbo',
+          description: 'Fast and cost-effective model'
+        }
+      ];
+    }
+  }
 
 }

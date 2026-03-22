@@ -236,5 +236,48 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
+  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    try {
+      // Anthropic API doesn't have a direct models.list() endpoint
+      // Return hardcoded models based on official documentation
+      return [
+        {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet',
+          description: 'Latest Claude model with enhanced capabilities'
+        },
+        {
+          id: 'claude-3-opus-20240229',
+          name: 'Claude 3 Opus',
+          description: 'Most powerful Claude model for complex tasks'
+        },
+        {
+          id: 'claude-3-sonnet-20240229',
+          name: 'Claude 3 Sonnet',
+          description: 'Balanced performance and efficiency'
+        },
+        {
+          id: 'claude-3-haiku-20240307',
+          name: 'Claude 3 Haiku',
+          description: 'Fast and cost-effective model'
+        }
+      ];
+    } catch (error) {
+      console.error('Error fetching Anthropic models:', error);
+      // Return default models on error
+      return [
+        {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet',
+          description: 'Latest Claude model with enhanced capabilities'
+        },
+        {
+          id: 'claude-3-sonnet-20240229',
+          name: 'Claude 3 Sonnet',
+          description: 'Balanced performance and efficiency'
+        }
+      ];
+    }
+  }
 
 }

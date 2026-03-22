@@ -232,5 +232,61 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
+  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    try {
+      const client = await this.getClient(apiKey);
+      // Use Google GenAI SDK to list models
+      // Note: The Google GenAI SDK doesn't have a direct models.list() method
+      // We'll use the available models from the official documentation
+      // and return them as the model list
+      return [
+        {
+          id: 'gemini-2.5-flash',
+          name: 'Gemini 2.5 Flash',
+          description: 'Latest fast and versatile model'
+        },
+        {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro',
+          description: 'Advanced model with enhanced capabilities'
+        },
+        {
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          description: 'Fast and efficient model for general tasks'
+        },
+        {
+          id: 'gemini-2.0-pro',
+          name: 'Gemini 2.0 Pro',
+          description: 'Powerful model for complex tasks'
+        },
+        {
+          id: 'gemini-1.5-flash',
+          name: 'Gemini 1.5 Flash',
+          description: 'Previous generation fast model'
+        },
+        {
+          id: 'gemini-1.5-pro',
+          name: 'Gemini 1.5 Pro',
+          description: 'Previous generation powerful model'
+        }
+      ];
+    } catch (error) {
+      console.error('Error fetching Gemini models:', error);
+      // Return default models on error
+      return [
+        {
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          description: 'Fast and efficient model for general tasks'
+        },
+        {
+          id: 'gemini-2.0-pro',
+          name: 'Gemini 2.0 Pro',
+          description: 'Powerful model for complex tasks'
+        }
+      ];
+    }
+  }
 
 }

@@ -10,10 +10,10 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { Settings } from "lucide-react";
+import { Settings, Search, ChevronDown } from "lucide-react";
 import { useToast } from "../../contexts/toast";
 
-type APIProvider = "openai" | "gemini" | "anthropic" | "ollama" | "bytedance";
+type APIProvider = "openai" | "gemini" | "anthropic" | "ollama" | "bytedance" | "zhipu";
 
 type AIModel = {
   id: string;
@@ -30,6 +30,7 @@ type ModelCategory = {
   anthropicModels: AIModel[];
   ollamaModels: AIModel[];
   byteDanceModels: AIModel[];
+  zhipuModels: AIModel[];
 };
 
 // Define available models for each category
@@ -127,6 +128,33 @@ const modelCategories: ModelCategory[] = [
         name: "doubao-1-5-thinking-vision-pro-250428",
         description: "Best overall performance for problem extraction"
       }
+    ],
+    zhipuModels: [
+      {
+        id: "glm-5",
+        name: "GLM-5",
+        description: "Latest GLM model with enhanced capabilities"
+      },
+      {
+        id: "glm-4-flash",
+        name: "GLM-4 Flash",
+        description: "Fast and efficient GLM model"
+      },
+      {
+        id: "glm-4",
+        name: "GLM-4",
+        description: "Powerful GLM model"
+      },
+      {
+        id: "glm-4-turbo",
+        name: "GLM-4 Turbo",
+        description: "High-performance GLM model"
+      },
+      {
+        id: "glm-3-turbo",
+        name: "GLM-3 Turbo",
+        description: "Previous generation GLM model"
+      }
     ]
   },
   {
@@ -221,6 +249,33 @@ const modelCategories: ModelCategory[] = [
         id: "doubao-1-5-thinking-vision-pro-250428",
         name: "doubao-1-5-thinking-vision-pro-250428",
         description: "Best overall performance for problem extraction"
+      }
+    ],
+    zhipuModels: [
+      {
+        id: "glm-5",
+        name: "GLM-5",
+        description: "Latest GLM model with enhanced capabilities"
+      },
+      {
+        id: "glm-4-flash",
+        name: "GLM-4 Flash",
+        description: "Fast and efficient GLM model"
+      },
+      {
+        id: "glm-4",
+        name: "GLM-4",
+        description: "Powerful GLM model"
+      },
+      {
+        id: "glm-4-turbo",
+        name: "GLM-4 Turbo",
+        description: "High-performance GLM model"
+      },
+      {
+        id: "glm-3-turbo",
+        name: "GLM-3 Turbo",
+        description: "Previous generation GLM model"
       }
     ]
   },
@@ -317,6 +372,33 @@ const modelCategories: ModelCategory[] = [
         name: "doubao-1-5-thinking-vision-pro-250428",
         description: "Best overall performance for problem extraction"
       }
+    ],
+    zhipuModels: [
+      {
+        id: "glm-5",
+        name: "GLM-5",
+        description: "Latest GLM model with enhanced capabilities"
+      },
+      {
+        id: "glm-4-flash",
+        name: "GLM-4 Flash",
+        description: "Fast and efficient GLM model"
+      },
+      {
+        id: "glm-4",
+        name: "GLM-4",
+        description: "Powerful GLM model"
+      },
+      {
+        id: "glm-4-turbo",
+        name: "GLM-4 Turbo",
+        description: "High-performance GLM model"
+      },
+      {
+        id: "glm-3-turbo",
+        name: "GLM-3 Turbo",
+        description: "Previous generation GLM model"
+      }
     ]
   }
 ];
@@ -326,6 +408,16 @@ interface SettingsDialogProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+// Define API providers
+const providers = [
+  { id: "openai", name: "OpenAI", description: "GPT-4o models" },
+  { id: "gemini", name: "Gemini", description: "Gemini 1.5 models" },
+  { id: "anthropic", name: "Claude", description: "Claude 3 models" },
+  { id: "ollama", name: "Ollama", description: "Mixed models" },
+  { id: "bytedance", name: "Bytedance", description: "Mixed models" },
+  { id: "zhipu", name: "Zhipu", description: "GLM models" }
+];
+
 export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDialogProps) {
   const [open, setOpen] = useState(externalOpen || false);
   const [apiKey, setApiKey] = useState("");
@@ -334,7 +426,14 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [solutionModel, setSolutionModel] = useState("gpt-4o");
   const [debuggingModel, setDebuggingModel] = useState("gpt-4o");
   const [isLoading, setIsLoading] = useState(false);
+  const [providerSearch, setProviderSearch] = useState("");
   const { showToast } = useToast();
+
+  // Filter providers based on search input
+  const filteredProviders = providers.filter(provider => 
+    provider.name.toLowerCase().includes(providerSearch.toLowerCase()) ||
+    provider.description.toLowerCase().includes(providerSearch.toLowerCase())
+  );
 
   // Sync with external open state
   useEffect(() => {
@@ -408,6 +507,10 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       setExtractionModel("doubao-seed-1-6-flash-250615");
       setSolutionModel("doubao-seed-1-6-flash-250615");
       setDebuggingModel("doubao-seed-1-6-flash-250615");    
+    } else if (provider === "zhipu") {
+      setExtractionModel("glm-4-flash");
+      setSolutionModel("glm-4-flash");
+      setDebuggingModel("glm-4-flash");    
     }
   };
 
@@ -482,105 +585,35 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           {/* API Provider Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-white">API Provider</label>
-            <div className="flex gap-2">
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "openai"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("openai")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "openai" ? "bg-white" : "bg-white/20"
-                    }`}
+            <div className="space-y-2">
+              {/* Provider dropdown with search */}
+              <div className="space-y-2">
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search providers..."
+                    value={providerSearch}
+                    onChange={(e) => setProviderSearch(e.target.value)}
+                    className="bg-black/50 border border-white/10 text-white pl-10"
                   />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">OpenAI</p>
-                    <p className="text-xs text-white/60">GPT-4o models</p>
-                  </div>
                 </div>
-              </div>
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "ollama"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("ollama")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "ollama" ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Ollama</p>
-                    <p className="text-xs text-white/60">Mixed models</p>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "bytedance"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("bytedance")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "bytedance" ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Bytedance</p>
-                    <p className="text-xs text-white/60">Mixed models</p>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "gemini"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("gemini")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "gemini" ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Gemini</p>
-                    <p className="text-xs text-white/60">Gemini 1.5 models</p>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "anthropic"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("anthropic")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "anthropic" ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Claude</p>
-                    <p className="text-xs text-white/60">Claude 3 models</p>
-                  </div>
+                
+                {/* Provider dropdown */}
+                <div className="relative">
+                  <select
+                    value={apiProvider}
+                    onChange={(e) => handleProviderChange(e.target.value as APIProvider)}
+                    className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 appearance-none focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    {filteredProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} - {provider.description}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -591,7 +624,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             {apiProvider === "openai" ? "OpenAI API Key" : 
              apiProvider === "gemini" ? "Gemini API Key" : 
              apiProvider === "ollama" ? "Ollama API Key" : 
-             apiProvider === "bytedance" ? "Bytedance API Key" : 
+             apiProvider === "bytedance" ? "Bytedance API Key" :
+             apiProvider === "zhipu" ? "Zhipu API Key" :
              "Anthropic API Key"}
             </label>
             <Input
@@ -602,6 +636,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               placeholder={
                 apiProvider === "openai" ? "sk-..." : 
                 apiProvider === "gemini" ? "Enter your Gemini API key" :
+                apiProvider === "zhipu" ? "Enter your Zhipu API key" :
                 "sk-ant-..."
               }
               className="bg-black/50 border-white/10 text-white"
@@ -612,7 +647,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               </p>
             )}
             <p className="text-xs text-white/50">
-              Your API key is stored locally and never sent to any server except {apiProvider === "openai" ? "OpenAI" : "Google"}
+              Your API key is stored locally and never sent to any server except {apiProvider === "openai" ? "OpenAI" : apiProvider === "zhipu" ? "Zhipu" : "Google"}
             </p>
             <div className="mt-2 p-2 rounded-md bg-white/5 border border-white/10">
               <p className="text-xs text-white/80 mb-1">Don't have an API key?</p>
@@ -660,6 +695,18 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </p>
                   <p className="text-xs text-white/60 mb-1">2. Go to the <button 
                     onClick={() => openExternalLink('https://aistudio.google.com/app/apikey')}
+                    className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
+                  </p>
+                  <p className="text-xs text-white/60">3. Create a new API key and paste it here</p>
+                </>
+              ) : apiProvider === "zhipu" ? (
+                <>
+                  <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
+                    onClick={() => openExternalLink('https://www.bigmodel.cn/')}
+                    className="text-blue-400 hover:underline cursor-pointer">Zhipu AI</button>
+                  </p>
+                  <p className="text-xs text-white/60 mb-1">2. Go to the <button 
+                    onClick={() => openExternalLink('https://www.bigmodel.cn/usercenter/apikeys')}
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new API key and paste it here</p>
@@ -736,7 +783,29 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 apiProvider === "gemini" ? category.geminiModels :
                 apiProvider === "ollama" ? category.ollamaModels :
                 apiProvider === "bytedance" ? category.byteDanceModels :
+                apiProvider === "zhipu" ? category.zhipuModels :
                 category.anthropicModels;
+              
+              // Determine which state to use based on category key
+              const currentValue = 
+                category.key === 'extractionModel' ? extractionModel :
+                category.key === 'solutionModel' ? solutionModel :
+                debuggingModel;
+              
+              // Determine which setter function to use
+              const setValue = 
+                category.key === 'extractionModel' ? setExtractionModel :
+                category.key === 'solutionModel' ? setSolutionModel :
+                setDebuggingModel;
+              
+              // State for search filter
+              const [searchFilter, setSearchFilter] = useState('');
+              
+              // Filter models based on search input
+              const filteredModels = models.filter(model => 
+                model.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                model.description.toLowerCase().includes(searchFilter.toLowerCase())
+              );
               
               return (
                 <div key={category.key} className="mb-4">
@@ -746,43 +815,33 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   <p className="text-xs text-white/60 mb-2">{category.description}</p>
                   
                   <div className="space-y-2">
-                    {models.map((m) => {
-                      // Determine which state to use based on category key
-                      const currentValue = 
-                        category.key === 'extractionModel' ? extractionModel :
-                        category.key === 'solutionModel' ? solutionModel :
-                        debuggingModel;
-                      
-                      // Determine which setter function to use
-                      const setValue = 
-                        category.key === 'extractionModel' ? setExtractionModel :
-                        category.key === 'solutionModel' ? setSolutionModel :
-                        setDebuggingModel;
-                        
-                      return (
-                        <div
-                          key={m.id}
-                          className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                            currentValue === m.id
-                              ? "bg-white/10 border border-white/20"
-                              : "bg-black/30 border border-white/5 hover:bg-white/5"
-                          }`}
-                          onClick={() => setValue(m.id)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-3 h-3 rounded-full ${
-                                currentValue === m.id ? "bg-white" : "bg-white/20"
-                              }`}
-                            />
-                            <div>
-                              <p className="font-medium text-white text-xs">{m.name}</p>
-                              <p className="text-xs text-white/60">{m.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {/* Search input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                      <Input
+                        type="text"
+                        placeholder="Search models..."
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        className="bg-black/50 border-white/10 text-white pl-10"
+                      />
+                    </div>
+                    
+                    {/* Model dropdown */}
+                    <div className="relative">
+                      <select
+                        value={currentValue}
+                        onChange={(e) => setValue(e.target.value)}
+                        className="w-full bg-black/50 border border-white/10 text-white rounded-lg px-4 py-2 appearance-none focus:outline-none focus:ring-2 focus:ring-white/20"
+                      >
+                        {filteredModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} - {m.description}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               );

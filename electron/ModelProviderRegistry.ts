@@ -55,7 +55,7 @@ export class ModelProviderRegistry {
 
   public clearCustomProviders(): void {
     // 只保留内置提供者
-    const builtinProviders = ['openai', 'gemini', 'anthropic', 'ollama', 'bytedance'];
+    const builtinProviders = ['openai', 'gemini', 'anthropic', 'ollama', 'bytedance', 'zhipu'];
     const providersToRemove = Array.from(this.providers.keys()).filter(name => !builtinProviders.includes(name));
     providersToRemove.forEach(name => this.providers.delete(name));
   }

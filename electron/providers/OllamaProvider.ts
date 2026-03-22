@@ -230,5 +230,47 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
+  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    try {
+      const client = await this.getClient(apiKey);
+      // Use OpenAI-compatible API to list models
+      const models = await client.models.list();
+      return models.data.map(model => ({
+        id: model.id,
+        name: model.id,
+        description: model.description || `Ollama model: ${model.id}`
+      }));
+    } catch (error) {
+      console.error('Error fetching Ollama models:', error);
+      // Return default models on error
+      return [
+        {
+          id: 'qwen2.5-it:3b',
+          name: 'Qwen 2.5 IT 3B',
+          description: 'Small and fast Qwen model'
+        },
+        {
+          id: 'qwen2.5-it:7b',
+          name: 'Qwen 2.5 IT 7B',
+          description: 'Medium Qwen model'
+        },
+        {
+          id: 'qwen2.5-it:14b',
+          name: 'Qwen 2.5 IT 14B',
+          description: 'Large Qwen model'
+        },
+        {
+          id: 'llama3.1:8b',
+          name: 'Llama 3.1 8B',
+          description: 'Meta Llama 3.1 model'
+        },
+        {
+          id: 'gemma2:9b',
+          name: 'Gemma 2 9B',
+          description: 'Google Gemma 2 model'
+        }
+      ];
+    }
+  }
 
 }

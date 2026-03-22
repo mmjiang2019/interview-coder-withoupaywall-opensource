@@ -1,39 +1,23 @@
-// ByteDanceProvider.ts
+// ZhipuProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 
-export class ByteDanceProvider extends BaseModelProvider {
-  name = 'bytedance';
-  displayName = 'ByteDance';
-  apiKeyPattern = /^[a-zA-Z0-9-]{36}$/;
+const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
+
+export class ZhipuProvider extends BaseModelProvider {
+  name = 'zhipu';
+  displayName = 'Zhipu AI';
+  apiKeyPattern = /^[a-zA-Z0-9-]{32,}$/;
   defaultModels = {
-    extraction: 'doubao-seed-1-6-flash-250615',
-    solution: 'doubao-seed-1-6-flash-250615',
-    debugging: 'doubao-seed-1-6-flash-250615'
+    extraction: 'glm-4-flash',
+    solution: 'glm-4-flash',
+    debugging: 'glm-4-flash'
   };
 
-  private client: OpenAI | null = null;
-
-  async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-    const baseValidation = await super.validateApiKey(apiKey);
-    if (!baseValidation.valid) return baseValidation;
-
-    try {
-      const client = new OpenAI({
-        apiKey,
-        baseURL: "https://ark.cn-beijing.volces.com/api/v3"
-      });
-      await client.models.list();
-      return { valid: true };
-    } catch (error: any) {
-      return { valid: false, error: error.message || 'Failed to validate API key' };
-    }
-  }
-
   protected async createClient(apiKey: string): Promise<OpenAI> {
-    return new OpenAI({ 
+    return new OpenAI({
       apiKey,
-      baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+      baseURL: ZHIPU_API_BASE_URL,
       timeout: 60000,
       maxRetries: 2
     });
@@ -41,6 +25,62 @@ export class ByteDanceProvider extends BaseModelProvider {
 
   async getClient(apiKey: string): Promise<OpenAI> {
     return super.getClient(apiKey);
+  }
+
+  async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+    const baseValidation = await super.validateApiKey(apiKey);
+    if (!baseValidation.valid) return baseValidation;
+
+    try {
+      const client = await this.getClient(apiKey);
+      await client.models.list();
+      return { valid: true };
+    } catch (error: any) {
+      return { valid: false, error: error.message || 'Failed to validate API key' };
+    }
+  }
+
+  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    try {
+      const client = await this.getClient(apiKey);
+      // Use OpenAI-compatible API to list models
+      const models = await client.models.list();
+      return models.data.map(model => ({
+        id: model.id,
+        name: model.id,
+        description: model.description || `Zhipu model: ${model.id}`
+      }));
+    } catch (error) {
+      console.error('Error fetching Zhipu models:', error);
+      // Return default models on error
+      return [
+        {
+          id: 'glm-5',
+          name: 'GLM-5',
+          description: 'Latest GLM model with enhanced capabilities'
+        },
+        {
+          id: 'glm-4-flash',
+          name: 'GLM-4 Flash',
+          description: 'Fast and efficient GLM model'
+        },
+        {
+          id: 'glm-4',
+          name: 'GLM-4',
+          description: 'Powerful GLM model'
+        },
+        {
+          id: 'glm-4-turbo',
+          name: 'GLM-4 Turbo',
+          description: 'High-performance GLM model'
+        },
+        {
+          id: 'glm-3-turbo',
+          name: 'GLM-3 Turbo',
+          description: 'Previous generation GLM model'
+        }
+      ];
+    }
   }
 
   async extractProblemInfo(params: {
@@ -228,44 +268,6 @@ If you include code examples, use proper markdown code blocks with language spec
 
     const responseText = response.choices[0].message.content;
     return this.parseDebugResponse(responseText);
-  }
-
-  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
-    try {
-      const client = await this.getClient(apiKey);
-      // Use OpenAI-compatible API to list models
-      const models = await client.models.list();
-      return models.data.map(model => ({
-        id: model.id,
-        name: model.id,
-        description: model.description || `ByteDance model: ${model.id}`
-      }));
-    } catch (error) {
-      console.error('Error fetching ByteDance models:', error);
-      // Return default models on error
-      return [
-        {
-          id: 'doubao-seed-1-6-flash-250615',
-          name: 'Doubao Seed 1.6 Flash',
-          description: 'Fast and efficient Doubao model'
-        },
-        {
-          id: 'doubao-seed-1-6-pro-250615',
-          name: 'Doubao Seed 1.6 Pro',
-          description: 'Powerful Doubao model'
-        },
-        {
-          id: 'doubao-1-5-flash-240725',
-          name: 'Doubao 1.5 Flash',
-          description: 'Previous generation fast model'
-        },
-        {
-          id: 'doubao-1-5-pro-240725',
-          name: 'Doubao 1.5 Pro',
-          description: 'Previous generation powerful model'
-        }
-      ];
-    }
   }
 
 }
