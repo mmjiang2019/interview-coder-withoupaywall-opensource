@@ -1,6 +1,7 @@
 // ZhipuProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
@@ -8,11 +9,13 @@ export class ZhipuProvider extends BaseModelProvider {
   name = 'zhipu';
   displayName = 'Zhipu AI';
   apiKeyPattern = /^[0-9a-z]{32}\.[0-9a-zA-Z]{16}$/;
-  defaultModels = {
-    extraction: 'glm-4.7-flash',
-    solution: 'glm-4.7-flash',
-    debugging: 'glm-4.7-flash'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('zhipu', 'extraction'),
+      solution: getDefaultModel('zhipu', 'solution'),
+      debugging: getDefaultModel('zhipu', 'debugging')
+    };
+  }
 
   protected async createClient(apiKey: string): Promise<OpenAI> {
     return new OpenAI({

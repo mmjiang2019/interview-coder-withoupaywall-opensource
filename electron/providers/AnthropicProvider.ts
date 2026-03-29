@@ -2,16 +2,19 @@
 import { BaseModelProvider } from '../ModelProvider';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 export class AnthropicProvider extends BaseModelProvider {
   name = 'anthropic';
   displayName = 'Anthropic';
   apiKeyPattern = /^sk-ant-[a-zA-Z0-9-]{95}$/;
-  defaultModels = {
-    extraction: 'claude-3-7-sonnet-20250219',
-    solution: 'claude-3-7-sonnet-20250219',
-    debugging: 'claude-3-7-sonnet-20250219'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('anthropic', 'extraction'),
+      solution: getDefaultModel('anthropic', 'solution'),
+      debugging: getDefaultModel('anthropic', 'debugging')
+    };
+  }
 
   private client: Anthropic | null = null;
 

@@ -2,16 +2,19 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { GoogleGenAI } from '@google/genai';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 export class GeminiProvider extends BaseModelProvider {
   name = 'gemini';
   displayName = 'Gemini';
   apiKeyPattern = /^[a-zA-Z0-9_]{39}$/;
-  defaultModels = {
-    extraction: 'gemini-2.0-flash',
-    solution: 'gemini-2.0-flash',
-    debugging: 'gemini-2.0-flash'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('gemini', 'extraction'),
+      solution: getDefaultModel('gemini', 'solution'),
+      debugging: getDefaultModel('gemini', 'debugging')
+    };
+  }
 
   async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
     const baseValidation = await super.validateApiKey(apiKey);

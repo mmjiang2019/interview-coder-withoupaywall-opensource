@@ -4,6 +4,7 @@ import path from "node:path"
 import { app } from "electron"
 import { EventEmitter } from "events"
 import { ModelProviderRegistry } from "./ModelProviderRegistry"
+import { getDefaultModel } from "./config/ModelDefaults"
 
 interface Config {
   apiKey: string;
@@ -161,35 +162,9 @@ export class ConfigHelper extends EventEmitter {
       
       // If provider is changing, reset models to the default for that provider
       if (updates.apiProvider && updates.apiProvider !== currentConfig.apiProvider) {
-        if (updates.apiProvider === "openai") {
-          updates.extractionModel = "gpt-4o";
-          updates.solutionModel = "gpt-4o";
-          updates.debuggingModel = "gpt-4o";
-        } else if (updates.apiProvider === "anthropic") {
-          updates.extractionModel = "claude-3-7-sonnet-20250219";
-          updates.solutionModel = "claude-3-7-sonnet-20250219";
-          updates.debuggingModel = "claude-3-7-sonnet-20250219";
-        } else if (updates.apiProvider === "gemini") {
-          updates.extractionModel = "gemini-2.0-flash";
-          updates.solutionModel = "gemini-2.0-flash";
-          updates.debuggingModel = "gemini-2.0-flash";
-        } else if (updates.apiProvider === "ollama") {
-          updates.extractionModel = "qwen2.5-it:3b";
-          updates.solutionModel = "qwen3:1.7b";
-          updates.debuggingModel = "qwen3:1.7b";
-        } else if (updates.apiProvider === "bytedance") {
-          updates.extractionModel = "doubao-seed-1-6-flash-250615";
-          updates.solutionModel = "doubao-seed-1-6-flash-250615";
-          updates.debuggingModel = "doubao-seed-1-6-flash-250615";
-        } else if (updates.apiProvider === "zhipu") {
-          updates.extractionModel = "glm-4.7-flash";
-          updates.solutionModel = "glm-4.7-flash";
-          updates.debuggingModel = "glm-4.7-flash";
-        } else {
-          updates.extractionModel = "qwen2.5-it:3b";
-          updates.solutionModel = "qwen2.5-it:3b";
-          updates.debuggingModel = "qwen2.5-it:3b";
-        }
+        updates.extractionModel = getDefaultModel(updates.apiProvider as any, 'extraction');
+        updates.solutionModel = getDefaultModel(updates.apiProvider as any, 'solution');
+        updates.debuggingModel = getDefaultModel(updates.apiProvider as any, 'debugging');
       }
       
       // Sanitize model selections in the updates

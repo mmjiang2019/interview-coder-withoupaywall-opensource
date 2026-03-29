@@ -1,16 +1,19 @@
 // OllamaProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 export class OllamaProvider extends BaseModelProvider {
   name = 'ollama';
   displayName = 'Ollama';
   apiKeyPattern = /^[a-zA-Z0-9]+$/; // Simple pattern for local API keys
-  defaultModels = {
-    extraction: 'qwen2.5-it:3b',
-    solution: 'qwen2.5-it:3b',
-    debugging: 'qwen2.5-it:3b'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('ollama', 'extraction'),
+      solution: getDefaultModel('ollama', 'solution'),
+      debugging: getDefaultModel('ollama', 'debugging')
+    };
+  }
 
   private client: OpenAI | null = null;
 

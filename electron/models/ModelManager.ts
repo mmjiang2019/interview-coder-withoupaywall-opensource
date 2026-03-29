@@ -1,5 +1,26 @@
 import { AIProvider } from '../clients/AIClientFactory';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { providerDefaultsMap } from '../config/ModelDefaults';
+
+// 模型能力配置 - 按供应商定义
+const providerCapabilities: Record<AIProvider, string[]> = {
+  openai: ['text', 'image', 'multimodal', 'code', 'reasoning', 'debugging'],
+  anthropic: ['text', 'image', 'multimodal', 'code', 'reasoning', 'debugging'],
+  gemini: ['text', 'image', 'multimodal', 'code', 'reasoning', 'debugging'],
+  ollama: ['text', 'code'],
+  bytedance: ['text', 'image', 'multimodal', 'code', 'reasoning', 'debugging'],
+  zhipu: ['text', 'multimodal', 'code', 'reasoning', 'debugging']
+};
+
+// 模型上下文窗口配置 - 按供应商定义
+const providerContextWindows: Record<AIProvider, number> = {
+  openai: 128000,
+  anthropic: 200000,
+  gemini: 1000000,
+  ollama: 8192,
+  bytedance: 128000,
+  zhipu: 128000
+};
 
 // 模型元数据接口
 export interface ModelMetadata {
@@ -42,121 +63,81 @@ export class ModelManager {
 
   /**
    * 初始化默认模型元数据
+   * 从集中式配置生成模型元数据
    */
   private initializeDefaultModels(): void {
-    const defaultModels: ModelMetadata[] = [
-      // OpenAI 模型
-      {
-        id: 'openai-gpt-4o',
-        name: 'gpt-4o',
-        provider: 'openai',
-        type: 'extraction',
-        description: 'OpenAI 最先进的多模态模型，支持文本和图像输入',
-        capabilities: ['text', 'image', 'multimodal'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 128000,
-        maxTokens: 4096
-      },
-      {
-        id: 'openai-gpt-4o-solution',
-        name: 'gpt-4o',
-        provider: 'openai',
-        type: 'solution',
-        description: 'OpenAI 最先进的多模态模型，用于生成代码解决方案',
-        capabilities: ['text', 'code', 'reasoning'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 128000,
-        maxTokens: 4096
-      },
-      {
-        id: 'openai-gpt-4o-debugging',
-        name: 'gpt-4o',
-        provider: 'openai',
-        type: 'debugging',
-        description: 'OpenAI 最先进的多模态模型，用于代码调试',
-        capabilities: ['text', 'code', 'debugging'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 128000,
-        maxTokens: 4096
-      },
+    // 为每个供应商和模型类型生成元数据
+    const providers: AIProvider[] = ['openai', 'anthropic', 'gemini', 'ollama', 'bytedance', 'zhipu'];
+    const types: ('extraction' | 'solution' | 'debugging')[] = ['extraction', 'solution', 'debugging'];
+    
+    providers.forEach(provider => {
+      const defaultModels = providerDefaultsMap[provider];
+      const capabilities = providerCapabilities[provider];
+      const contextWindow = providerContextWindows[provider];
       
-      // Anthropic 模型
-      {
-        id: 'anthropic-claude-3-opus',
-        name: 'claude-3-opus-20240229',
-        provider: 'anthropic',
-        type: 'extraction',
-        description: 'Anthropic 最先进的模型，支持文本和图像输入',
-        capabilities: ['text', 'image', 'multimodal'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 200000,
-        maxTokens: 4096
-      },
-      
-      // Gemini 模型
-      {
-        id: 'gemini-1.5-pro',
-        name: 'gemini-1.5-pro',
-        provider: 'gemini',
-        type: 'extraction',
-        description: 'Google 的 Gemini 1.5 Pro 模型，支持多模态输入',
-        capabilities: ['text', 'image', 'multimodal'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 1000000,
-        maxTokens: 4096
-      },
-      
-      // Ollama 模型
-      {
-        id: 'ollama-llama3',
-        name: 'llama3',
-        provider: 'ollama',
-        type: 'extraction',
-        description: 'Ollama 本地运行的 Llama 3 模型',
-        capabilities: ['text'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 8192,
-        maxTokens: 4096
-      },
-      
-      // ByteDance 模型
-      {
-        id: 'bytedance-doubao',
-        name: 'doubao',
-        provider: 'bytedance',
-        type: 'extraction',
-        description: 'ByteDance 的 Doubao 模型，支持多模态输入',
-        capabilities: ['text', 'image', 'multimodal'],
-        version: '1.0',
-        isAvailable: true,
-        lastChecked: new Date(),
-        contextWindow: 128000,
-        maxTokens: 4096
-      }
-    ];
-
-    // 添加默认模型到存储
-    defaultModels.forEach(model => {
-      this.modelMetadata.set(model.id, model);
-      
-      // 更新提供者模型映射
-      if (!this.providerModels.has(model.provider)) {
-        this.providerModels.set(model.provider, []);
-      }
-      this.providerModels.get(model.provider)?.push(model.id);
+      types.forEach(type => {
+        const modelId = defaultModels[type];
+        const metadataId = `${provider}-${modelId}-${type}`;
+        
+        const modelMetadata: ModelMetadata = {
+          id: metadataId,
+          name: modelId,
+          provider: provider,
+          type: type,
+          description: this.getModelDescription(provider, type, modelId),
+          capabilities: capabilities,
+          version: '1.0',
+          isAvailable: true,
+          lastChecked: new Date(),
+          contextWindow: contextWindow,
+          maxTokens: 4096
+        };
+        
+        this.modelMetadata.set(metadataId, modelMetadata);
+        
+        // 更新提供者模型映射
+        if (!this.providerModels.has(provider)) {
+          this.providerModels.set(provider, []);
+        }
+        this.providerModels.get(provider)?.push(metadataId);
+      });
     });
+    
+    console.log(`[ModelManager] Initialized ${this.modelMetadata.size} model metadata entries`);
+  }
+  
+  /**
+   * 获取模型描述
+   */
+  private getModelDescription(provider: AIProvider, type: string, modelId: string): string {
+    const descriptions: Record<string, Record<string, string>> = {
+      extraction: {
+        openai: 'OpenAI 最先进的多模态模型，支持文本和图像输入',
+        anthropic: 'Anthropic 最先进的模型，支持文本和图像输入',
+        gemini: 'Google 的 Gemini 模型，支持多模态输入',
+        ollama: 'Ollama 本地运行的模型',
+        bytedance: 'ByteDance 的模型，支持多模态输入',
+        zhipu: '智谱 AI 的 GLM 模型，支持多模态输入'
+      },
+      solution: {
+        openai: 'OpenAI 模型，用于生成代码解决方案',
+        anthropic: 'Anthropic 模型，用于生成代码解决方案',
+        gemini: 'Google Gemini 模型，用于生成代码解决方案',
+        ollama: 'Ollama 本地模型，用于生成代码解决方案',
+        bytedance: 'ByteDance 模型，用于生成代码解决方案',
+        zhipu: '智谱 AI GLM 模型，用于生成代码解决方案'
+      },
+      debugging: {
+        openai: 'OpenAI 模型，用于代码调试',
+        anthropic: 'Anthropic 模型，用于代码调试',
+        gemini: 'Google Gemini 模型，用于代码调试',
+        ollama: 'Ollama 本地模型，用于代码调试',
+        bytedance: 'ByteDance 模型，用于代码调试',
+        zhipu: '智谱 AI GLM 模型，用于代码调试'
+      }
+    };
+    
+    return descriptions[type]?.[provider] || `${provider} 模型`;
   }
 
   /**
@@ -347,6 +328,27 @@ export class ModelManager {
   public modelSupportsCapability(modelId: string, capability: string): boolean {
     const capabilities = this.getModelCapabilities(modelId);
     return capabilities.includes(capability);
+  }
+  
+  /**
+   * 获取供应商的默认模型
+   */
+  public getDefaultModelForProvider(provider: AIProvider, type: 'extraction' | 'solution' | 'debugging'): string {
+    return providerDefaultsMap[provider][type];
+  }
+  
+  /**
+   * 获取供应商的能力列表
+   */
+  public getProviderCapabilities(provider: AIProvider): string[] {
+    return providerCapabilities[provider];
+  }
+  
+  /**
+   * 获取供应商的上下文窗口大小
+   */
+  public getProviderContextWindow(provider: AIProvider): number {
+    return providerContextWindows[provider];
   }
 }
 

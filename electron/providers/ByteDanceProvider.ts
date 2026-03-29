@@ -1,16 +1,19 @@
 // ByteDanceProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 export class ByteDanceProvider extends BaseModelProvider {
   name = 'bytedance';
   displayName = 'ByteDance';
   apiKeyPattern = /^[a-zA-Z0-9-]{36}$/;
-  defaultModels = {
-    extraction: 'doubao-seed-1-6-flash-250615',
-    solution: 'doubao-seed-1-6-flash-250615',
-    debugging: 'doubao-seed-1-6-flash-250615'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('bytedance', 'extraction'),
+      solution: getDefaultModel('bytedance', 'solution'),
+      debugging: getDefaultModel('bytedance', 'debugging')
+    };
+  }
 
   private client: OpenAI | null = null;
 

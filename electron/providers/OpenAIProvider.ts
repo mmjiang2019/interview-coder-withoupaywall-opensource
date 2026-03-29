@@ -2,16 +2,19 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { getDefaultModel } from '../config/ModelDefaults';
 
 export class OpenAIProvider extends BaseModelProvider {
   name = 'openai';
   displayName = 'OpenAI';
   apiKeyPattern = /^sk-[a-zA-Z0-9]{32,}$/;
-  defaultModels = {
-    extraction: 'gpt-4o',
-    solution: 'gpt-4o',
-    debugging: 'gpt-4o'
-  };
+  get defaultModels() {
+    return {
+      extraction: getDefaultModel('openai', 'extraction'),
+      solution: getDefaultModel('openai', 'solution'),
+      debugging: getDefaultModel('openai', 'debugging')
+    };
+  }
 
   async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
     const baseValidation = await super.validateApiKey(apiKey);

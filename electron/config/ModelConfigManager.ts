@@ -1,4 +1,13 @@
 import { AIProvider } from '../clients/AIClientFactory';
+import { providerDefaultsMap, getDefaultModelsByProvider } from './ModelDefaults';
+
+// 自定义模型接口
+export interface CustomModel {
+  id: string;
+  name: string;
+  description: string;
+  provider: AIProvider;
+}
 
 // 自定义提供者接口
 export interface CustomProvider {
@@ -28,6 +37,7 @@ export interface ModelConfig {
   timeout: number;
   maxRetries: number;
   customProviders: CustomProvider[];
+  customModels: CustomModel[];
 }
 
 // 配置变更事件类型
@@ -54,51 +64,55 @@ export class ModelConfigManager {
   }
 
   private getDefaultConfig(): ModelConfig {
+    // 使用集中式默认配置
+    const defaults = providerDefaultsMap;
+    
     return {
       apiProvider: 'openai',
       providerConfigs: {
         openai: {
           apiKey: '',
-          extraction: 'gpt-4o',
-          solution: 'gpt-4o',
-          debugging: 'gpt-4o'
+          extraction: defaults.openai.extraction,
+          solution: defaults.openai.solution,
+          debugging: defaults.openai.debugging
         },
         anthropic: {
           apiKey: '',
-          extraction: 'claude-3-7-sonnet-20250219',
-          solution: 'claude-3-7-sonnet-20250219',
-          debugging: 'claude-3-7-sonnet-20250219'
+          extraction: defaults.anthropic.extraction,
+          solution: defaults.anthropic.solution,
+          debugging: defaults.anthropic.debugging
         },
         gemini: {
           apiKey: '',
-          extraction: 'gemini-1.5-pro',
-          solution: 'gemini-1.5-pro',
-          debugging: 'gemini-1.5-pro'
+          extraction: defaults.gemini.extraction,
+          solution: defaults.gemini.solution,
+          debugging: defaults.gemini.debugging
         },
         ollama: {
           apiKey: '',
-          extraction: 'qwen2.5-coder:3b',
-          solution: 'qwen2.5-coder:3b',
-          debugging: 'qwen2.5-coder:3b'
+          extraction: defaults.ollama.extraction,
+          solution: defaults.ollama.solution,
+          debugging: defaults.ollama.debugging
         },
         bytedance: {
           apiKey: '',
-          extraction: 'doubao-seed-1-6-flash-250615',
-          solution: 'doubao-seed-1-6-flash-250615',
-          debugging: 'doubao-seed-1-6-flash-250615'
+          extraction: defaults.bytedance.extraction,
+          solution: defaults.bytedance.solution,
+          debugging: defaults.bytedance.debugging
         },
         zhipu: {
           apiKey: '',
-          extraction: 'glm-5',
-          solution: 'glm-5',
-          debugging: 'glm-5'
+          extraction: defaults.zhipu.extraction,
+          solution: defaults.zhipu.solution,
+          debugging: defaults.zhipu.debugging
         }
       },
-      language: 'python',
+      language: 'golang',
       languages: ['python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'go', 'rust', 'ruby', 'php'],
       timeout: 60000,
       maxRetries: 2,
-      customProviders: []
+      customProviders: [],
+      customModels: []
     };
   }
 
@@ -214,6 +228,12 @@ export class ModelConfigManager {
     let hasChanges = false;
     const updatedConfig = { ...this.config };
     
+    // 先处理apiProvider的更新，确保后续的模型设置更新使用正确的提供者
+    if (updates.apiProvider !== undefined && updatedConfig.apiProvider !== updates.apiProvider) {
+      updatedConfig.apiProvider = updates.apiProvider;
+      hasChanges = true;
+    }
+    
     // 处理旧格式的更新
     if (updates.apiKey !== undefined) {
       const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
@@ -260,12 +280,6 @@ export class ModelConfigManager {
           hasChanges = true;
         }
       });
-    }
-    
-    // 处理新格式的更新
-    if (updates.apiProvider !== undefined && updatedConfig.apiProvider !== updates.apiProvider) {
-      updatedConfig.apiProvider = updates.apiProvider;
-      hasChanges = true;
     }
     
     if (updates.providerConfigs !== undefined) {
@@ -390,6 +404,25 @@ export class ModelConfigManager {
 
   public getCustomProvider(name: string): CustomProvider | undefined {
     return this.config.customProviders.find(p => p.name === name);
+  }
+
+  // Custom model management
+  public addCustomModel(model: CustomModel): void {
+    const customModels = [...this.config.customModels, model];
+    this.updateConfig({ customModels });
+  }
+
+  public removeCustomModel(modelId: string): void {
+    const customModels = this.config.customModels.filter(m => m.id !== modelId);
+    this.updateConfig({ customModels });
+  }
+
+  public getCustomModels(): CustomModel[] {
+    return [...this.config.customModels];
+  }
+
+  public getCustomModelsByProvider(provider: AIProvider): CustomModel[] {
+    return this.config.customModels.filter(m => m.provider === provider);
   }
 
   public onConfigChange(handler: ConfigChangeHandler): void {
