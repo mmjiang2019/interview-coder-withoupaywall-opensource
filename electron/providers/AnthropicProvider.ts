@@ -2,7 +2,7 @@
 import { BaseModelProvider } from '../ModelProvider';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelConfigManager } from '../config/ModelConfigManager';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 export class AnthropicProvider extends BaseModelProvider {
   name = 'anthropic';

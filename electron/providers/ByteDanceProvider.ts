@@ -1,7 +1,7 @@
 // ByteDanceProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 export class ByteDanceProvider extends BaseModelProvider {
   name = 'bytedance';

@@ -1,7 +1,7 @@
 // ZhipuProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 

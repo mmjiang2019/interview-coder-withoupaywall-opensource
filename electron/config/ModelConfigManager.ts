@@ -1,5 +1,5 @@
 import { AIProvider } from '../clients/AIClientFactory';
-import { providerDefaultsMap, getDefaultModelsByProvider } from './ModelDefaults';
+import { providerDefaultsMap, getDefaultModelsByProvider } from '../../src/config/models';
 
 // 自定义模型接口
 export interface CustomModel {

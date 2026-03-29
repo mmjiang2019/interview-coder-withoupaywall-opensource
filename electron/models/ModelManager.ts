@@ -1,6 +1,6 @@
 import { AIProvider } from '../clients/AIClientFactory';
 import { modelConfigManager } from '../config/ModelConfigManager';
-import { providerDefaultsMap } from '../config/ModelDefaults';
+import { providerDefaultsMap } from '../../src/config/models';
 
 // 模型能力配置 - 按供应商定义
 const providerCapabilities: Record<AIProvider, string[]> = {

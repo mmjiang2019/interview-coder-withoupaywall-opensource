@@ -4,7 +4,7 @@ import path from "node:path"
 import { app } from "electron"
 import { EventEmitter } from "events"
 import { ModelProviderRegistry } from "./ModelProviderRegistry"
-import { getDefaultModel } from "./config/ModelDefaults"
+import { getDefaultModel } from "../src/config/models";
 
 interface Config {
   apiKey: string;
@@ -161,10 +161,17 @@ export class ConfigHelper extends EventEmitter {
       }
       
       // If provider is changing, reset models to the default for that provider
+      // Only reset if user hasn't provided specific model selections
       if (updates.apiProvider && updates.apiProvider !== currentConfig.apiProvider) {
-        updates.extractionModel = getDefaultModel(updates.apiProvider as any, 'extraction');
-        updates.solutionModel = getDefaultModel(updates.apiProvider as any, 'solution');
-        updates.debuggingModel = getDefaultModel(updates.apiProvider as any, 'debugging');
+        if (!updates.extractionModel) {
+          updates.extractionModel = getDefaultModel(updates.apiProvider as any, 'extraction');
+        }
+        if (!updates.solutionModel) {
+          updates.solutionModel = getDefaultModel(updates.apiProvider as any, 'solution');
+        }
+        if (!updates.debuggingModel) {
+          updates.debuggingModel = getDefaultModel(updates.apiProvider as any, 'debugging');
+        }
       }
       
       // Sanitize model selections in the updates

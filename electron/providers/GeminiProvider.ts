@@ -2,7 +2,7 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { GoogleGenAI } from '@google/genai';
 import { modelConfigManager } from '../config/ModelConfigManager';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 export class GeminiProvider extends BaseModelProvider {
   name = 'gemini';

@@ -24,6 +24,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       debuggingModel: modelConfig.debuggingModel,
       apiKey: modelConfig.apiKeys[modelConfig.apiProvider] || oldConfig.apiKey,
       apiKeys: modelConfig.apiKeys,
+      providerConfigs: modelConfig.providerConfigs,
       language: modelConfig.language,
       languages: modelConfig.languages
     };

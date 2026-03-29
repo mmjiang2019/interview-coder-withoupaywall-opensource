@@ -2,7 +2,7 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { modelConfigManager } from '../config/ModelConfigManager';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 export class OpenAIProvider extends BaseModelProvider {
   name = 'openai';

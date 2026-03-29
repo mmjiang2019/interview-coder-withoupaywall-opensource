@@ -1,7 +1,7 @@
 // OllamaProvider.ts
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
-import { getDefaultModel } from '../config/ModelDefaults';
+import { getDefaultModel } from '../../src/config/models';
 
 export class OllamaProvider extends BaseModelProvider {
   name = 'ollama';
