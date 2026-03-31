@@ -2,6 +2,7 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { getDefaultModel } from '../../src/config/models';
+import { modelConfigManager } from '../config/ModelConfigManager';
 
 const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
@@ -102,7 +103,9 @@ export class ZhipuProvider extends BaseModelProvider {
     example_input?: string;
     example_output?: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[this.name];
+    const client = await this.getClient(apiKey);
     const messages = [
       {
         role: "system" as const, 
@@ -151,7 +154,9 @@ export class ZhipuProvider extends BaseModelProvider {
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[this.name];
+    const client = await this.getClient(apiKey);
     const promptText = `
 Generate a detailed solution for the following coding problem:
 
@@ -218,7 +223,9 @@ Your solution should be efficient, well-commented, and handle edge cases.
     time_complexity: string;
     space_complexity: string;
   }> {
-    const client = await this.getClient('');
+    const config = modelConfigManager.getConfig();
+    const apiKey = config.apiKeys[this.name];
+    const client = await this.getClient(apiKey);
     const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
 

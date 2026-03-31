@@ -175,18 +175,23 @@ export const bytedanceModels: AIModel[] = [
 
 export const zhipuModels: AIModel[] = [
   {
-    id: "glm-5",
-    name: "GLM-5",
+    id: "glm-4.7-flash",
+    name: "GLM 4.7 Flash",
     description: "Latest GLM model with enhanced capabilities"
   },
   {
-    id: "glm-4-flash",
-    name: "GLM-4 Flash",
+    id: "glm-4.6v-flash",
+    name: "GLM 4.6V Flash",
+    description: "Fast and efficient for vision tasks"
+  },
+  {
+    id: "glm-4.5-flash",
+    name: "GLM 4.5 Flash",
     description: "Fast and efficient for most tasks"
   },
   {
-    id: "glm-3-turbo",
-    name: "GLM-3 Turbo",
+    id: "glm-4-flash",
+    name: "GLM 4 Flash",
     description: "Balanced performance and speed"
   }
 ];
@@ -231,9 +236,9 @@ export const providerDefaultsMap: ProviderDefaultsMap = {
     debugging: "doubao-seed-1-6-flash-250615"
   },
   zhipu: {
-    extraction: "glm-5",
-    solution: "glm-5",
-    debugging: "glm-5"
+    extraction: "glm-4.6v-flash",
+    solution: "glm-4.7-flash",
+    debugging: "glm-4.7-flash"
   }
 };
 
