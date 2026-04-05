@@ -14,6 +14,8 @@ interface Config {
   debuggingModel: string;
   language: string;
   opacity: number;
+  accessKeyId?: string;
+  secretAccessKey?: string;
 }
 
 export class ConfigHelper extends EventEmitter {
@@ -25,7 +27,9 @@ export class ConfigHelper extends EventEmitter {
     solutionModel: "",
     debuggingModel: "",
     language: "golang",
-    opacity: 1.0
+    opacity: 1.0,
+    accessKeyId: "",
+    secretAccessKey: ""
   };
 
   constructor() {
@@ -137,7 +141,10 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Update specific configuration values
    */
-  public updateConfig(updates: Partial<Config>): Config {
+  public updateConfig(updates: Partial<Config> & {
+    accessKeyId?: string;
+    secretAccessKey?: string;
+  }): Config {
     try {
       const currentConfig = this.loadConfig();
       let provider = updates.apiProvider || currentConfig.apiProvider;

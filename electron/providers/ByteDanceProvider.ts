@@ -240,38 +240,72 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    console.log('[ByteDanceProvider] Starting to fetch models');
+    
+    // 直接从ModelConfigManager获取配置
+    const config = modelConfigManager.getConfig();
+    const currentProviderConfig = config.providerConfigs[config.apiProvider];
+    const ak = currentProviderConfig.accessKeyId || accessKeyId;
+    const sk = currentProviderConfig.secretAccessKey || secretAccessKey;
+    
+    console.log('[ByteDanceProvider] Received parameters:');
+    console.log('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
+    console.log('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
+    console.log('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
+    
     try {
+      // 检查是否提供了Access Key ID和Secret Access Key
+      if (!ak || !sk) {
+        console.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
+        throw new Error('Access Key ID and Secret Access Key are required for ByteDance API');
+      }
+      
       // 生成当前时间戳
       const date = new Date();
       const xDate = date.toISOString().replace(/\.\d+Z$/, 'Z').replace(/[-:]/g, '');
       const dateShort = xDate.substring(0, 8);
+      console.log('[ByteDanceProvider] Generated timestamp:', xDate);
       
       // 构建请求体
       const requestBody = JSON.stringify({
         PageNumber: 1,
-        PageSize: 100,
+        PageSize: 10,
         SortOrder: 'Desc',
         SortBy: 'CreateTime'
       });
+      console.log('[ByteDanceProvider] Request body:', requestBody);
       
       // 计算Content-SHA256
       const crypto = require('crypto');
       const contentSha256 = crypto.createHash('sha256').update(requestBody).digest('hex');
+      console.log('[ByteDanceProvider] Content-SHA256:', contentSha256);
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        Action: 'ListFoundationModels',
+        Version: '2024-01-01',
+        'X-Algorithm': 'HMAC-SHA256',
+        'X-Credential': `${ak}/${dateShort}/cn-beijing/ark/request`,
+        'X-Date': xDate,
+        'X-Expires': '3600',
+        'X-NotSignBody': '1',
+        'X-SignedHeaders': '',
+        'X-SignedQueries': 'Action;Version;X-Algorithm;X-Credential;X-Date;X-Expires;X-NotSignBody;X-SignedHeaders;X-SignedQueries'
+      });
       
       // 构建规范化请求字符串
       const canonicalRequest = [
         'POST',
         '/',
-        'Action=ListFoundationModelVersions&Version=2024-01-01',
-        `content-type:application/json; charset=UTF-8`,
-        `host:open.volcengineapi.com`,
-        `x-content-sha256:${contentSha256}`,
-        `x-date:${xDate}`,
+        queryParams.toString(),
+        `content-type:application/json; charset=utf-8`,
+        `host:ark.cn-beijing.volcengineapi.com`,
         '',
-        'host;x-content-sha256;x-date',
-        contentSha256
+        '',
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
       ].join('\n');
+      console.log('[ByteDanceProvider] Canonical request:', canonicalRequest);
       
       // 构建签名字符串
       const credentialScope = `${dateShort}/cn-beijing/ark/request`;
@@ -281,45 +315,69 @@ If you include code examples, use proper markdown code blocks with language spec
         credentialScope,
         crypto.createHash('sha256').update(canonicalRequest).digest('hex')
       ].join('\n');
+      console.log('[ByteDanceProvider] String to sign:', stringToSign);
       
-      // 计算签名
-      const signature = crypto.createHmac('sha256', apiKey)
+      // 计算签名（按照火山引擎的签名算法）
+      // 1. 计算kDate
+      const kDate = crypto.createHmac('sha256', sk)
+        .update(dateShort)
+        .digest('binary');
+      // 2. 计算kRegion
+      const kRegion = crypto.createHmac('sha256', kDate)
+        .update('cn-beijing')
+        .digest('binary');
+      // 3. 计算kService
+      const kService = crypto.createHmac('sha256', kRegion)
+        .update('ark')
+        .digest('binary');
+      // 4. 计算kSigning
+      const kSigning = crypto.createHmac('sha256', kService)
+        .update('request')
+        .digest('binary');
+      // 5. 计算最终签名
+      const signature = crypto.createHmac('sha256', kSigning)
         .update(stringToSign)
         .digest('hex');
+      console.log('[ByteDanceProvider] Signature:', signature);
       
-      // 构建Authorization头部
-      const authorization = `HMAC-SHA256 Credential=${apiKey}/${credentialScope}, SignedHeaders=host;x-content-sha256;x-date, Signature=${signature}`;
+      // 添加签名到查询参数
+      queryParams.append('X-Signature', signature);
       
-      // 使用火山引擎的ListFoundationModelVersions API获取模型列表
-      const response = await fetch('https://open.volcengineapi.com/?Action=ListFoundationModelVersions&Version=2024-01-01', {
+      // 使用火山引擎的ListFoundationModels API获取模型列表
+      console.log('[ByteDanceProvider] Making API request to fetch models');
+      const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryParams.toString()}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'X-Date': xDate,
-          'X-Content-Sha256': contentSha256,
-          'Authorization': authorization
+          'Content-Type': 'application/json; charset=utf-8'
         },
         body: requestBody
       });
-
+      
+      console.log('[ByteDanceProvider] API response status:', response.status);
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        const errorText = await response.text();
+        console.error('[ByteDanceProvider] API request failed:', errorText);
+        throw new Error(`API request failed with status ${response.status}: ${errorText}`);
       }
-
+      
       const data = await response.json();
-      const modelVersions = data.Result?.Items || [];
-
+      console.log('[ByteDanceProvider] API response data:', JSON.stringify(data, null, 2));
+      const models = data.Result?.Items || [];
+      console.log('[ByteDanceProvider] Found', models.length, 'models');
+      
       // 构建模型列表
-      const models: Array<{ id: string; name: string; description: string }> = modelVersions.map((version: any) => ({
-        id: `${version.FoundationModelName}-${version.ModelVersion}`,
-        name: `${version.FoundationModelName} (${version.ModelVersion})`,
-        description: version.Description || `ByteDance model version: ${version.ModelVersion}`
+      const modelList: Array<{ id: string; name: string; description: string }> = models.map((model: any) => ({
+        id: model.Name,
+        name: model.DisplayName || model.Name,
+        description: model.Description || `ByteDance model: ${model.Name}`
       }));
-
-      return models;
-    } catch (error) {
-      console.error('Error fetching ByteDance models:', error);
+      
+      console.log('[ByteDanceProvider] Generated model list:', modelList);
+      return modelList;
+    } catch (error: any) {
+      console.error('[ByteDanceProvider] Error fetching ByteDance models:', error.message);
       // Return default models on error
+      console.log('[ByteDanceProvider] Using default models due to error');
       return [
         {
           id: 'doubao-seed-2-0-pro-260215',

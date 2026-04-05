@@ -31,6 +31,8 @@ export interface ModelConfig {
     extraction: string;
     solution: string;
     debugging: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
   }>;
   language: string;
   languages: string[];
@@ -74,37 +76,49 @@ export class ModelConfigManager {
           apiKey: '',
           extraction: defaults.openai.extraction,
           solution: defaults.openai.solution,
-          debugging: defaults.openai.debugging
+          debugging: defaults.openai.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         },
         anthropic: {
           apiKey: '',
           extraction: defaults.anthropic.extraction,
           solution: defaults.anthropic.solution,
-          debugging: defaults.anthropic.debugging
+          debugging: defaults.anthropic.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         },
         gemini: {
           apiKey: '',
           extraction: defaults.gemini.extraction,
           solution: defaults.gemini.solution,
-          debugging: defaults.gemini.debugging
+          debugging: defaults.gemini.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         },
         ollama: {
           apiKey: '',
           extraction: defaults.ollama.extraction,
           solution: defaults.ollama.solution,
-          debugging: defaults.ollama.debugging
+          debugging: defaults.ollama.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         },
         bytedance: {
           apiKey: '',
           extraction: defaults.bytedance.extraction,
           solution: defaults.bytedance.solution,
-          debugging: defaults.bytedance.debugging
+          debugging: defaults.bytedance.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         },
         zhipu: {
           apiKey: '',
           extraction: defaults.zhipu.extraction,
           solution: defaults.zhipu.solution,
-          debugging: defaults.zhipu.debugging
+          debugging: defaults.zhipu.debugging,
+          accessKeyId: '',
+          secretAccessKey: ''
         }
       },
       language: 'golang',
@@ -196,6 +210,8 @@ export class ModelConfigManager {
     solutionModel: string;
     debuggingModel: string;
     apiKeys: Record<AIProvider, string>;
+    accessKeyId: string;
+    secretAccessKey: string;
   } {
     const config = { ...this.config };
     // 添加前端需要的字段
@@ -206,6 +222,8 @@ export class ModelConfigManager {
       extractionModel: currentProviderConfig.extraction,
       solutionModel: currentProviderConfig.solution,
       debuggingModel: currentProviderConfig.debugging,
+      accessKeyId: currentProviderConfig.accessKeyId || '',
+      secretAccessKey: currentProviderConfig.secretAccessKey || '',
       apiKeys: {
         openai: config.providerConfigs.openai.apiKey,
         anthropic: config.providerConfigs.anthropic.apiKey,
@@ -223,6 +241,8 @@ export class ModelConfigManager {
     solutionModel?: string;
     debuggingModel?: string;
     apiKeys?: Record<AIProvider, string>;
+    accessKeyId?: string;
+    secretAccessKey?: string;
   }): void {
     // 检查是否有实际变更
     let hasChanges = false;
@@ -266,6 +286,24 @@ export class ModelConfigManager {
       const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
       if (currentProviderConfig.debugging !== updates.debuggingModel) {
         currentProviderConfig.debugging = updates.debuggingModel;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.accessKeyId !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.accessKeyId !== updates.accessKeyId) {
+        currentProviderConfig.accessKeyId = updates.accessKeyId;
+        updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
+        hasChanges = true;
+      }
+    }
+    
+    if (updates.secretAccessKey !== undefined) {
+      const currentProviderConfig = { ...updatedConfig.providerConfigs[updatedConfig.apiProvider] };
+      if (currentProviderConfig.secretAccessKey !== updates.secretAccessKey) {
+        currentProviderConfig.secretAccessKey = updates.secretAccessKey;
         updatedConfig.providerConfigs[updatedConfig.apiProvider] = currentProviderConfig;
         hasChanges = true;
       }

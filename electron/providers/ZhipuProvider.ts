@@ -44,7 +44,7 @@ export class ZhipuProvider extends BaseModelProvider {
     }
   }
 
-  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
       const client = await this.getClient(apiKey);
       // Use OpenAI-compatible API to list models

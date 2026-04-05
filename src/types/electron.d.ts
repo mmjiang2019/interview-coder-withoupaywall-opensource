@@ -33,6 +33,7 @@ export interface ElectronAPI {
   openExternal: (url: string) => void
   toggleMainWindow: () => Promise<{ success: boolean; error?: string }>
   triggerScreenshot: () => Promise<{ success: boolean; error?: string }>
+  getModels: (provider: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string) => Promise<Array<{ id: string; name: string; description: string }>>
   triggerProcessScreenshots: () => Promise<{ success: boolean; error?: string }>
   triggerReset: () => Promise<{ success: boolean; error?: string }>
   triggerMoveLeft: () => Promise<{ success: boolean; error?: string }>
@@ -54,8 +55,8 @@ export interface ElectronAPI {
   getPlatform: () => string
   
   // New methods for OpenAI integration
-  getConfig: () => Promise<{ apiKey: string; model: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string }>
-  updateConfig: (config: { apiKey?: string; model?: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string }) => Promise<boolean>
+  getConfig: () => Promise<{ apiKey: string; model: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; accessKeyId?: string; secretAccessKey?: string }>
+  updateConfig: (config: { apiKey?: string; model?: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; accessKeyId?: string; secretAccessKey?: string }) => Promise<boolean>
   checkApiKey: () => Promise<boolean>
   validateApiKey: (apiKey: string) => Promise<{ valid: boolean; error?: string }>
   openLink: (url: string) => void
@@ -65,8 +66,6 @@ export interface ElectronAPI {
   getCustomProviders: () => Promise<any[]>
   addCustomProvider: (provider: any) => Promise<any>
   removeCustomProvider: (name: string) => Promise<{ success: boolean }>
-  // Model list management
-  getModels: (providerName: string, apiKey: string) => Promise<Array<{ id: string; name: string; description: string }>>
 }
 
 declare global {

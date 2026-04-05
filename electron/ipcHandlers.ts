@@ -26,7 +26,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       apiKeys: modelConfig.apiKeys,
       providerConfigs: modelConfig.providerConfigs,
       language: modelConfig.language,
-      languages: modelConfig.languages
+      languages: modelConfig.languages,
+      accessKeyId: modelConfig.accessKeyId || oldConfig.accessKeyId,
+      secretAccessKey: modelConfig.secretAccessKey || oldConfig.secretAccessKey
     };
   })
 
@@ -69,6 +71,12 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     if (updates.languages) {
       configUpdates.languages = updates.languages;
     }
+    if (updates.accessKeyId) {
+      configUpdates.accessKeyId = updates.accessKeyId;
+    }
+    if (updates.secretAccessKey) {
+      configUpdates.secretAccessKey = updates.secretAccessKey;
+    }
     
     // 一次性更新所有配置，减少配置变更事件的数量
     if (Object.keys(configUpdates).length > 0) {
@@ -98,13 +106,13 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   })
 
   // Model list management
-  ipcMain.handle("get-models", async (_event, providerName: string, apiKey: string) => {
+  ipcMain.handle("get-models", async (_event, providerName: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string) => {
     const registry = ModelProviderRegistry.getInstance();
     const provider = registry.getProvider(providerName);
     if (!provider) {
       throw new Error(`Provider ${providerName} not found`);
     }
-    return provider.getModels(apiKey);
+    return provider.getModels(apiKey, accessKeyId, secretAccessKey);
   })
 
   ipcMain.handle("check-api-key", () => {

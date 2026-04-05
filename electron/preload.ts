@@ -236,7 +236,9 @@ const electronAPI = {
       ipcRenderer.removeListener("delete-last-screenshot", subscription)
     }
   },
-  deleteLastScreenshot: () => ipcRenderer.invoke("delete-last-screenshot")
+  deleteLastScreenshot: () => ipcRenderer.invoke("delete-last-screenshot"),
+  // Model list management
+  getModels: (provider: string, apiKey: string) => ipcRenderer.invoke("get-models", provider, apiKey)
 }
 
 // Before exposing the API

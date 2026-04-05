@@ -143,9 +143,58 @@ export const ollamaModels: AIModel[] = [
 
 // ==================== Bytedance 模型 ====================
 
-// 注意：ByteDance模型列表现在从API动态获取，这里保持空数组
-// 当API调用失败时，会使用ByteDanceProvider中的默认模型
-export const bytedanceModels: AIModel[] = [];
+export const bytedanceModels: AIModel[] = [
+  {
+    id: 'doubao-seed-2-0-pro-260215',
+    name: 'Doubao Seed 2.0 Pro',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-2-0-lite-260215',
+    name: 'Doubao Seed 2.0 Lite',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-2-0-mini-260215',
+    name: 'Doubao Seed 2.0 Mini',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-2-0-code-preview-260215',
+    name: 'Doubao Seed 2.0 Code',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-1-8-251228',
+    name: 'Doubao Seed 1.8',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-1-6-251015',
+    name: 'Doubao Seed 1.6',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-1-6-flash-250615',
+    name: 'Doubao Seed 1.6 Flash',
+    description: 'Fast and efficient Doubao model'
+  },
+  {
+    id: 'doubao-seed-1-6-pro-250615',
+    name: 'Doubao Seed 1.6 Pro',
+    description: 'Powerful Doubao model'
+  },
+  {
+    id: 'doubao-seed-1-6-vision-250815',
+    name: 'Doubao 1.6 Vision',
+    description: 'Previous generation fast model'
+  },
+  {
+    id: 'doubao-1-5-pro-240725',
+    name: 'Doubao 1.5 Pro',
+    description: 'Previous generation powerful model'
+  }
+];
 
 // ==================== Zhipu 模型 ====================
 

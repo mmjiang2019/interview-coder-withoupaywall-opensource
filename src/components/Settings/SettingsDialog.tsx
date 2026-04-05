@@ -41,6 +41,8 @@ const categoryList: ModelCategory[] = modelCategories;
 export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDialogProps) {
   const [open, setOpen] = useState(externalOpen || false);
   const [apiKey, setApiKey] = useState("");
+  const [accessKeyId, setAccessKeyId] = useState("");
+  const [secretAccessKey, setSecretAccessKey] = useState("");
   const [apiProvider, setApiProvider] = useState<APIProvider>("openai");
   const [extractionModel, setExtractionModel] = useState("");
   const [solutionModel, setSolutionModel] = useState("");
@@ -117,11 +119,15 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel?: string;
         debuggingModel?: string;
         apiKeys?: Record<APIProvider, string>;
+        accessKeyId?: string;
+        secretAccessKey?: string;
         providerConfigs?: Record<APIProvider, {
           apiKey: string;
           extraction: string;
           solution: string;
           debugging: string;
+          accessKeyId?: string;
+          secretAccessKey?: string;
         }>;
       }
 
@@ -143,12 +149,16 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           if (config.providerConfigs && config.providerConfigs[currentProvider]) {
             const providerConfig = config.providerConfigs[currentProvider];
             setApiKey(providerConfig.apiKey || "");
+            setAccessKeyId(providerConfig.accessKeyId || "");
+            setSecretAccessKey(providerConfig.secretAccessKey || "");
             setExtractionModel(providerConfig.extraction || getDefaultModel(currentProvider, "extraction"));
             setSolutionModel(providerConfig.solution || getDefaultModel(currentProvider, "solution"));
             setDebuggingModel(providerConfig.debugging || getDefaultModel(currentProvider, "debugging"));
           } else {
             // 兼容旧格式
             setApiKey(config.apiKey || "");
+            setAccessKeyId(config.accessKeyId || "");
+            setSecretAccessKey(config.secretAccessKey || "");
             setExtractionModel(config.extractionModel || getDefaultModel(currentProvider, "extraction"));
             setSolutionModel(config.solutionModel || getDefaultModel(currentProvider, "solution"));
             setDebuggingModel(config.debuggingModel || getDefaultModel(currentProvider, "debugging"));
@@ -168,29 +178,33 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
 
   // Handle API provider change
   const handleProviderChange = (provider: APIProvider) => {
-    setApiProvider(provider);
-    // 加载对应提供者的API key
-    setApiKey(apiKeys[provider] || "");
-    
     // 从配置中获取该provider对应的模型设置
     window.electronAPI
       .getConfig()
       .then((config: any) => {
         // 优先使用新的providerConfigs结构
-        let providerModelSettings: { extraction?: string; solution?: string; debugging?: string } = {};
+        let providerModelSettings: { extraction?: string; solution?: string; debugging?: string; accessKeyId?: string; secretAccessKey?: string; apiKey?: string } = {};
         if (config.providerConfigs && config.providerConfigs[provider]) {
           providerModelSettings = config.providerConfigs[provider];
         }
         
-        // 更新模型选择为该provider对应的模型设置，如果没有则使用默认模型
+        // 更新所有状态变量
+        setApiProvider(provider);
+        setApiKey(providerModelSettings.apiKey || config.apiKeys?.[provider] || "");
         setExtractionModel(providerModelSettings.extraction || getDefaultModel(provider, "extraction"));
         setSolutionModel(providerModelSettings.solution || getDefaultModel(provider, "solution"));
         setDebuggingModel(providerModelSettings.debugging || getDefaultModel(provider, "debugging"));
+        setAccessKeyId(providerModelSettings.accessKeyId || "");
+        setSecretAccessKey(providerModelSettings.secretAccessKey || "");
       })
       .catch((error: unknown) => {
         console.error("Failed to load config for provider change:", error);
         // 出错时使用默认模型
+        setApiProvider(provider);
+        setApiKey("");
         setDefaultModels(provider);
+        setAccessKeyId("");
+        setSecretAccessKey("");
       });
   };
 
@@ -220,6 +234,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         extractionModel,
         solutionModel,
         debuggingModel,
+        accessKeyId,
+        secretAccessKey,
         apiKeys: updatedApiKeys
       });
       
@@ -387,29 +403,76 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             <p className="text-xs text-white/50">
               Your API key is stored locally and never sent to any server except {currentProviderInfo?.name}
             </p>
-            <div className="mt-2 p-2 rounded-md bg-white/5 border border-white/10">
-              <p className="text-xs text-white/80 mb-1">Don't have an API key?</p>
-              <p className="text-xs text-white/60 mb-1">
-                1. Create an account at{' '}
-                <button 
-                  onClick={() => openExternalLink(currentProviderInfo?.docsUrl || '')} 
-                  className="text-blue-400 hover:underline cursor-pointer"
-                >
-                  {currentProviderInfo?.name}
-                </button>
+          </div>
+          
+          {/* ByteDance specific fields */}
+          {apiProvider === "bytedance" && (
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white" htmlFor="accessKeyId">
+                  Access Key ID
+                </label>
+                <Input
+                  id="accessKeyId"
+                  type="password"
+                  value={accessKeyId}
+                  onChange={(e) => setAccessKeyId(e.target.value)}
+                  placeholder="Enter your Access Key ID"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+                {accessKeyId && (
+                  <p className="text-xs text-white/50">
+                    Current: {maskApiKey(accessKeyId)}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white" htmlFor="secretAccessKey">
+                  Secret Access Key
+                </label>
+                <Input
+                  id="secretAccessKey"
+                  type="password"
+                  value={secretAccessKey}
+                  onChange={(e) => setSecretAccessKey(e.target.value)}
+                  placeholder="Enter your Secret Access Key"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+                {secretAccessKey && (
+                  <p className="text-xs text-white/50">
+                    Current: {maskApiKey(secretAccessKey)}
+                  </p>
+                )}
+              </div>
+              
+              <p className="text-xs text-white/50">
+                For ByteDance, you need to create an Access Key ID and Secret Access Key in the Volcengine console
               </p>
-              <p className="text-xs text-white/60 mb-1">
-                2. Go to{' '}
-                <button 
-                  onClick={() => openExternalLink(currentProviderInfo?.apiKeysUrl || '')} 
-                  className="text-blue-400 hover:underline cursor-pointer"
-                >
-                  API Keys
-                </button>{' '}
-                section
-              </p>
-              <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
             </div>
+          )}
+          <div className="mt-2 p-2 rounded-md bg-white/5 border border-white/10">
+            <p className="text-xs text-white/80 mb-1">Don't have an API key?</p>
+            <p className="text-xs text-white/60 mb-1">
+              1. Create an account at{' '}
+              <button 
+                onClick={() => openExternalLink(currentProviderInfo?.docsUrl || '')} 
+                className="text-blue-400 hover:underline cursor-pointer"
+              >
+                {currentProviderInfo?.name}
+              </button>
+            </p>
+            <p className="text-xs text-white/60 mb-1">
+              2. Go to{' '}
+              <button 
+                onClick={() => openExternalLink(currentProviderInfo?.apiKeysUrl || '')} 
+                className="text-blue-400 hover:underline cursor-pointer"
+              >
+                API Keys
+              </button>{' '}
+              section
+            </p>
+            <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
           </div>
           
           <div className="space-y-2 mt-4">
@@ -469,6 +532,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 value={getModelValue(category.key)}
                 onChange={(value) => setModelValue(category.key, value)}
                 disabled={isLoading}
+                apiKey={apiKey}
+                accessKeyId={accessKeyId}
+                secretAccessKey={secretAccessKey}
               />
             ))}
           </div>

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Input } from "../ui/input";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Loader2 } from "lucide-react";
 import {
   APIProvider,
   ModelCategoryType,
@@ -15,6 +15,9 @@ interface ModelSelectorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  apiKey?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
 }
 
 export function ModelSelector({
@@ -23,13 +26,57 @@ export function ModelSelector({
   value,
   onChange,
   disabled = false,
+  apiKey = "",
+  accessKeyId = "",
+  secretAccessKey = "",
 }: ModelSelectorProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 获取当前供应商的模型列表（包含自定义模型）
-  const models = getModelsByProviderWithCustom(provider);
+  // 当供应商或API key变化时，获取模型列表
+  useEffect(() => {
+    const fetchModels = async () => {
+      console.log(`[ModelSelector] useEffect triggered with provider=${provider}, apiKey=${apiKey ? '***' : 'not provided'}, accessKeyId=${accessKeyId ? '***' : 'not provided'}, secretAccessKey=${secretAccessKey ? '***' : 'not provided'}`);
+      // 对于ByteDance，尝试从API获取模型列表
+      if (provider === "bytedance" && apiKey) {
+        setIsLoading(true);
+        setError(null);
+        try {
+          console.log(`[ModelSelector] Fetching models for ${provider} with API key`);
+          const apiModels = await window.electronAPI.getModels(provider, apiKey, accessKeyId, secretAccessKey);
+          console.log(`[ModelSelector] Got models from API:`, apiModels);
+          // 确保API返回的模型列表不为空
+          if (apiModels && apiModels.length > 0) {
+            setModels(apiModels);
+          } else {
+            console.warn(`[ModelSelector] API returned empty model list, using default models`);
+            setError("API returned empty model list. Using default models.");
+            setModels(getModelsByProviderWithCustom(provider));
+          }
+        } catch (err) {
+          console.error(`[ModelSelector] Error fetching models:`, err);
+          setError("Failed to fetch models. Using default models.");
+          // 出错时使用默认模型
+          const defaultModels = getModelsByProviderWithCustom(provider);
+          console.log(`[ModelSelector] Using default models:`, defaultModels);
+          setModels(defaultModels);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // 对于其他供应商，使用静态配置的模型列表
+        const defaultModels = getModelsByProviderWithCustom(provider);
+        console.log(`[ModelSelector] Using default models for ${provider}:`, defaultModels);
+        setModels(defaultModels);
+      }
+    };
+
+    fetchModels();
+  }, [provider, apiKey, accessKeyId, secretAccessKey]);
 
   // 根据搜索过滤模型
   const filteredModels = models.filter(
@@ -113,7 +160,16 @@ export function ModelSelector({
               </div>
             </div>
             <div className="max-h-60 overflow-y-auto">
-              {filteredModels.length === 0 ? (
+              {isLoading ? (
+                <div className="p-4 flex justify-center items-center">
+                  <Loader2 className="animate-spin text-white/50 w-5 h-5" />
+                  <span className="ml-2 text-white/50 text-sm">Loading models...</span>
+                </div>
+              ) : error ? (
+                <div className="p-2 text-red-400 text-sm mb-2">
+                  {error}
+                </div>
+              ) : filteredModels.length === 0 ? (
                 <div className="p-2 text-white/50 text-sm">
                   No models found
                 </div>

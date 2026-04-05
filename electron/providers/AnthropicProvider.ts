@@ -239,7 +239,7 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
       // Anthropic API doesn't have a direct models.list() endpoint
       // Return hardcoded models based on official documentation

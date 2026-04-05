@@ -235,7 +235,7 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
       const client = await this.getClient(apiKey);
       // Use Google GenAI SDK to list models
