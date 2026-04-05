@@ -242,18 +242,115 @@ If you include code examples, use proper markdown code blocks with language spec
 
   async getModels(apiKey: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
-      const client = await this.getClient(apiKey);
-      // Use OpenAI-compatible API to list models
-      const models = await client.models.list();
-      return models.data.map(model => ({
-        id: model.id,
-        name: model.id,
-        description: (model as any).description ?? `ByteDance model: ${model.id}`
+      // 生成当前时间戳
+      const date = new Date();
+      const xDate = date.toISOString().replace(/\.\d+Z$/, 'Z').replace(/[-:]/g, '');
+      const dateShort = xDate.substring(0, 8);
+      
+      // 构建请求体
+      const requestBody = JSON.stringify({
+        PageNumber: 1,
+        PageSize: 100,
+        SortOrder: 'Desc',
+        SortBy: 'CreateTime'
+      });
+      
+      // 计算Content-SHA256
+      const crypto = require('crypto');
+      const contentSha256 = crypto.createHash('sha256').update(requestBody).digest('hex');
+      
+      // 构建规范化请求字符串
+      const canonicalRequest = [
+        'POST',
+        '/',
+        'Action=ListFoundationModelVersions&Version=2024-01-01',
+        `content-type:application/json; charset=UTF-8`,
+        `host:open.volcengineapi.com`,
+        `x-content-sha256:${contentSha256}`,
+        `x-date:${xDate}`,
+        '',
+        'host;x-content-sha256;x-date',
+        contentSha256
+      ].join('\n');
+      
+      // 构建签名字符串
+      const credentialScope = `${dateShort}/cn-beijing/ark/request`;
+      const stringToSign = [
+        'HMAC-SHA256',
+        xDate,
+        credentialScope,
+        crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+      ].join('\n');
+      
+      // 计算签名
+      const signature = crypto.createHmac('sha256', apiKey)
+        .update(stringToSign)
+        .digest('hex');
+      
+      // 构建Authorization头部
+      const authorization = `HMAC-SHA256 Credential=${apiKey}/${credentialScope}, SignedHeaders=host;x-content-sha256;x-date, Signature=${signature}`;
+      
+      // 使用火山引擎的ListFoundationModelVersions API获取模型列表
+      const response = await fetch('https://open.volcengineapi.com/?Action=ListFoundationModelVersions&Version=2024-01-01', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Date': xDate,
+          'X-Content-Sha256': contentSha256,
+          'Authorization': authorization
+        },
+        body: requestBody
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      const modelVersions = data.Result?.Items || [];
+
+      // 构建模型列表
+      const models: Array<{ id: string; name: string; description: string }> = modelVersions.map((version: any) => ({
+        id: `${version.FoundationModelName}-${version.ModelVersion}`,
+        name: `${version.FoundationModelName} (${version.ModelVersion})`,
+        description: version.Description || `ByteDance model version: ${version.ModelVersion}`
       }));
+
+      return models;
     } catch (error) {
       console.error('Error fetching ByteDance models:', error);
       // Return default models on error
       return [
+        {
+          id: 'doubao-seed-2-0-pro-260215',
+          name: 'Doubao Seed 2.0 Pro',
+          description: 'Fast and efficient Doubao model'
+        },
+        {
+          id: 'doubao-seed-2-0-lite-260215',
+          name: 'Doubao Seed 2.0 Lite',
+          description: 'Fast and efficient Doubao model'
+        },
+        {
+          id: 'doubao-seed-2-0-mini-260215',
+          name: 'Doubao Seed 2.0 Mini',
+          description: 'Fast and efficient Doubao model'
+        },
+        {
+          id: 'doubao-seed-2-0-code-preview-260215',
+          name: 'Doubao Seed 2.0 Code',
+          description: 'Fast and efficient Doubao model'
+        },
+        {
+          id: 'doubao-seed-1-8-251228',
+          name: 'Doubao Seed 1.8',
+          description: 'Fast and efficient Doubao model'
+        },
+        {
+          id: 'doubao-seed-1-6-251015',
+          name: 'Doubao Seed 1.6',
+          description: 'Fast and efficient Doubao model'
+        },
         {
           id: 'doubao-seed-1-6-flash-250615',
           name: 'Doubao Seed 1.6 Flash',
@@ -265,8 +362,8 @@ If you include code examples, use proper markdown code blocks with language spec
           description: 'Powerful Doubao model'
         },
         {
-          id: 'doubao-1-5-flash-240725',
-          name: 'Doubao 1.5 Flash',
+          id: 'doubao-seed-1-6-vision-250815',
+          name: 'Doubao 1.6 Vision',
           description: 'Previous generation fast model'
         },
         {

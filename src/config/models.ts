@@ -143,33 +143,9 @@ export const ollamaModels: AIModel[] = [
 
 // ==================== Bytedance 模型 ====================
 
-export const bytedanceModels: AIModel[] = [
-  {
-    id: "doubao-seed-1-6-flash-250615",
-    name: "doubao-seed-1-6-flash-250615",
-    description: "Strong overall performance for coding tasks"
-  },
-  {
-    id: "doubao-seed-1-6-250615",
-    name: "doubao-seed-1-6-250615",
-    description: "Faster, more cost-effective option"
-  },
-  {
-    id: "deepseek-v3-250324",
-    name: "deepseek-v3-250324",
-    description: "Best overall performance for problem extraction"
-  },
-  {
-    id: "kimi-k2-250711",
-    name: "kimi-k2-250711",
-    description: "Best overall performance for problem extraction"
-  },
-  {
-    id: "doubao-1-5-thinking-vision-pro-250428",
-    name: "doubao-1-5-thinking-vision-pro-250428",
-    description: "Best overall performance for problem extraction"
-  }
-];
+// 注意：ByteDance模型列表现在从API动态获取，这里保持空数组
+// 当API调用失败时，会使用ByteDanceProvider中的默认模型
+export const bytedanceModels: AIModel[] = [];
 
 // ==================== Zhipu 模型 ====================
 
