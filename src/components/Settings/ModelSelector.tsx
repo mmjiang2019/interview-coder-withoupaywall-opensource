@@ -47,7 +47,7 @@ export function ModelSelector({
         setError(null);
         try {
           console.log(`[ModelSelector] Fetching models for ${provider} with API key`);
-          const apiModels = await window.electronAPI.getModels(provider, apiKey, accessKeyId, secretAccessKey);
+          const apiModels = await window.electronAPI.getModels(provider, apiKey, accessKeyId, secretAccessKey, searchFilter);
           console.log(`[ModelSelector] Got models from API:`, apiModels);
           // 确保API返回的模型列表不为空
           if (apiModels && apiModels.length > 0) {

@@ -41,7 +41,7 @@ export class GenericProvider extends BaseModelProvider {
     return super.getClient(apiKey) as Promise<{ apiKey: string; baseUrl: string }>;
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
       // 这里实现通用的模型列表查询逻辑
       // 实际实现需要根据不同API的格式进行调整

@@ -3,6 +3,7 @@ import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { getDefaultModel } from '../../src/config/models';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import * as crypto from 'crypto';
 
 export class ByteDanceProvider extends BaseModelProvider {
   name = 'bytedance';
@@ -45,6 +46,73 @@ export class ByteDanceProvider extends BaseModelProvider {
 
   async getClient(apiKey: string): Promise<OpenAI> {
     return super.getClient(apiKey);
+  }
+
+  private signRequest(params: {
+    method: string;
+    path: string;
+    ak: string;
+    sk: string;
+    region: string;
+    service: string;
+    query: Record<string, string>;
+    body?: string;
+  }): { authorization: string; xDate: string; contentSha256: string } {
+    const { method, path, ak, sk, region, service, query, body } = params;
+    
+    const date = new Date();
+    const xDate = date.toISOString().replace(/\.\d+Z$/, 'Z').replace(/[-:]/g, '');
+    const dateShort = xDate.substring(0, 8);
+    
+    const contentSha256 = body 
+      ? crypto.createHash('sha256').update(body).digest('hex')
+      : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    
+    const sortedQueryKeys = Object.keys(query).sort();
+    const canonicalQueryString = sortedQueryKeys
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
+      .join('&');
+    
+    const signedHeaders = ['content-type', 'host', 'x-content-sha256', 'x-date'];
+    const canonicalHeaders = [
+      `content-type:application/json`,
+      `host:${service}.${region}.volcengineapi.com`,
+      `x-content-sha256:${contentSha256}`,
+      `x-date:${xDate}`
+    ].join('\n') + '\n';
+    
+    const canonicalRequest = [
+      method,
+      path,
+      canonicalQueryString,
+      canonicalHeaders,
+      signedHeaders.join(';'),
+      contentSha256
+    ].join('\n');
+    
+    const credentialScope = `${dateShort}/${region}/${service}/request`;
+    const stringToSign = [
+      'HMAC-SHA256',
+      xDate,
+      credentialScope,
+      crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+    ].join('\n');
+    
+    // 按照火山引擎官方文档实现签名密钥派生
+    // 步骤1: 使用Secret Access Key作为密钥，Date作为输入
+    const kDate = crypto.createHmac('sha256', sk).update(dateShort).digest();
+    // 步骤2: 使用kDate作为密钥，Region作为输入
+    const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+    // 步骤3: 使用kRegion作为密钥，Service作为输入
+    const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+    // 步骤4: 使用kService作为密钥，'request'作为输入
+    const kSigning = crypto.createHmac('sha256', kService).update('request').digest();
+    // 步骤5: 使用kSigning作为密钥，StringToSign作为输入
+    const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+    
+    const authorization = `HMAC-SHA256 Credential=${ak}/${credentialScope}, SignedHeaders=${signedHeaders.join(';')}, Signature=${signature}`;
+    
+    return { authorization, xDate, contentSha256 };
   }
 
   async extractProblemInfo(params: {
@@ -240,10 +308,9 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     console.log('[ByteDanceProvider] Starting to fetch models');
     
-    // 直接从ModelConfigManager获取配置
     const config = modelConfigManager.getConfig();
     const currentProviderConfig = config.providerConfigs[config.apiProvider];
     const ak = currentProviderConfig.accessKeyId || accessKeyId;
@@ -253,102 +320,62 @@ If you include code examples, use proper markdown code blocks with language spec
     console.log('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
     console.log('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
     console.log('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
+    console.log('[ByteDanceProvider] keyword:', keyword || 'not provided');
     
     try {
-      // 检查是否提供了Access Key ID和Secret Access Key
       if (!ak || !sk) {
         console.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
         throw new Error('Access Key ID and Secret Access Key are required for ByteDance API');
       }
       
-      // 生成当前时间戳
-      const date = new Date();
-      const xDate = date.toISOString().replace(/\.\d+Z$/, 'Z').replace(/[-:]/g, '');
-      const dateShort = xDate.substring(0, 8);
-      console.log('[ByteDanceProvider] Generated timestamp:', xDate);
-      
-      // 构建请求体
+      // 构建请求体，包含关键字过滤条件
       const requestBody = JSON.stringify({
         PageNumber: 1,
-        PageSize: 10,
+        PageSize: 100,
         SortOrder: 'Desc',
-        SortBy: 'CreateTime'
+        SortBy: 'CreateTime',
+        ...(keyword && {
+          Filter: {
+            Name: keyword
+          }
+        })
       });
       console.log('[ByteDanceProvider] Request body:', requestBody);
       
-      // 计算Content-SHA256
-      const crypto = require('crypto');
-      const contentSha256 = crypto.createHash('sha256').update(requestBody).digest('hex');
-      console.log('[ByteDanceProvider] Content-SHA256:', contentSha256);
-      
-      // 构建查询参数
-      const queryParams = new URLSearchParams({
+      const query = {
         Action: 'ListFoundationModels',
-        Version: '2024-01-01',
-        'X-Algorithm': 'HMAC-SHA256',
-        'X-Credential': `${ak}/${dateShort}/cn-beijing/ark/request`,
-        'X-Date': xDate,
-        'X-Expires': '3600',
-        'X-NotSignBody': '1',
-        'X-SignedHeaders': '',
-        'X-SignedQueries': 'Action;Version;X-Algorithm;X-Credential;X-Date;X-Expires;X-NotSignBody;X-SignedHeaders;X-SignedQueries'
+        Version: '2024-01-01'
+      };
+      
+      const { authorization, xDate, contentSha256 } = this.signRequest({
+        method: 'POST',
+        path: '/',
+        ak,
+        sk,
+        region: 'cn-beijing',
+        service: 'ark',
+        query,
+        body: requestBody
       });
       
-      // 构建规范化请求字符串
-      const canonicalRequest = [
-        'POST',
-        '/',
-        queryParams.toString(),
-        `content-type:application/json; charset=utf-8`,
-        `host:ark.cn-beijing.volcengineapi.com`,
-        '',
-        '',
-        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-      ].join('\n');
-      console.log('[ByteDanceProvider] Canonical request:', canonicalRequest);
+      console.log('[ByteDanceProvider] Authorization:', authorization);
+      console.log('[ByteDanceProvider] X-Date:', xDate);
+      console.log('[ByteDanceProvider] X-Content-Sha256:', contentSha256);
       
-      // 构建签名字符串
-      const credentialScope = `${dateShort}/cn-beijing/ark/request`;
-      const stringToSign = [
-        'HMAC-SHA256',
-        xDate,
-        credentialScope,
-        crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-      ].join('\n');
-      console.log('[ByteDanceProvider] String to sign:', stringToSign);
+      const queryString = Object.keys(query)
+        .sort()
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
+        .join('&');
       
-      // 计算签名（按照火山引擎的签名算法）
-      // 1. 计算kDate
-      const kDate = crypto.createHmac('sha256', sk)
-        .update(dateShort)
-        .digest('binary');
-      // 2. 计算kRegion
-      const kRegion = crypto.createHmac('sha256', kDate)
-        .update('cn-beijing')
-        .digest('binary');
-      // 3. 计算kService
-      const kService = crypto.createHmac('sha256', kRegion)
-        .update('ark')
-        .digest('binary');
-      // 4. 计算kSigning
-      const kSigning = crypto.createHmac('sha256', kService)
-        .update('request')
-        .digest('binary');
-      // 5. 计算最终签名
-      const signature = crypto.createHmac('sha256', kSigning)
-        .update(stringToSign)
-        .digest('hex');
-      console.log('[ByteDanceProvider] Signature:', signature);
-      
-      // 添加签名到查询参数
-      queryParams.append('X-Signature', signature);
-      
-      // 使用火山引擎的ListFoundationModels API获取模型列表
       console.log('[ByteDanceProvider] Making API request to fetch models');
-      const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryParams.toString()}`, {
+      const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryString}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json; charset=utf-8'
+          'Content-Type': 'application/json',
+          'Host': 'ark.cn-beijing.volcengineapi.com',
+          'X-Date': xDate,
+          'X-Content-Sha256': contentSha256,
+          'Authorization': authorization
         },
         body: requestBody
       });
@@ -365,7 +392,6 @@ If you include code examples, use proper markdown code blocks with language spec
       const models = data.Result?.Items || [];
       console.log('[ByteDanceProvider] Found', models.length, 'models');
       
-      // 构建模型列表
       const modelList: Array<{ id: string; name: string; description: string }> = models.map((model: any) => ({
         id: model.Name,
         name: model.DisplayName || model.Name,
@@ -376,7 +402,6 @@ If you include code examples, use proper markdown code blocks with language spec
       return modelList;
     } catch (error: any) {
       console.error('[ByteDanceProvider] Error fetching ByteDance models:', error.message);
-      // Return default models on error
       console.log('[ByteDanceProvider] Using default models due to error');
       return [
         {

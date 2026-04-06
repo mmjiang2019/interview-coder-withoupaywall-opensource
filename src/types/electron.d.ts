@@ -33,7 +33,7 @@ export interface ElectronAPI {
   openExternal: (url: string) => void
   toggleMainWindow: () => Promise<{ success: boolean; error?: string }>
   triggerScreenshot: () => Promise<{ success: boolean; error?: string }>
-  getModels: (provider: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string) => Promise<Array<{ id: string; name: string; description: string }>>
+  getModels: (provider: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string) => Promise<Array<{ id: string; name: string; description: string }>>
   triggerProcessScreenshots: () => Promise<{ success: boolean; error?: string }>
   triggerReset: () => Promise<{ success: boolean; error?: string }>
   triggerMoveLeft: () => Promise<{ success: boolean; error?: string }>

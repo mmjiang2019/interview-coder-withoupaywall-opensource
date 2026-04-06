@@ -106,13 +106,13 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   })
 
   // Model list management
-  ipcMain.handle("get-models", async (_event, providerName: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string) => {
+  ipcMain.handle("get-models", async (_event, providerName: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string) => {
     const registry = ModelProviderRegistry.getInstance();
     const provider = registry.getProvider(providerName);
     if (!provider) {
       throw new Error(`Provider ${providerName} not found`);
     }
-    return provider.getModels(apiKey, accessKeyId, secretAccessKey);
+    return provider.getModels(apiKey, accessKeyId, secretAccessKey, keyword);
   })
 
   ipcMain.handle("check-api-key", () => {

@@ -238,7 +238,7 @@ const electronAPI = {
   },
   deleteLastScreenshot: () => ipcRenderer.invoke("delete-last-screenshot"),
   // Model list management
-  getModels: (provider: string, apiKey: string) => ipcRenderer.invoke("get-models", provider, apiKey)
+  getModels: (provider: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string) => ipcRenderer.invoke("get-models", provider, apiKey, accessKeyId, secretAccessKey, keyword)
 }
 
 // Before exposing the API
