@@ -527,11 +527,6 @@ async function initializeApp() {
       
     loadEnvVariables()
     
-    // Ensure a configuration file exists
-    if (!configHelper.hasApiKey()) {
-      safeLogger.mainLog("No API key found in configuration. User will need to set up.")
-    }
-    
     // Initialize model providers before helpers
     const { initializeModelProviders } = await import('./initModelProviders');
     await initializeModelProviders();
@@ -540,6 +535,11 @@ async function initializeApp() {
     const registry = ModelProviderRegistry.getInstance();
     safeLogger.mainLog('Registered providers:', 
       registry.getAllProviders().map(p => p.displayName));
+    
+    // Ensure a configuration file exists
+    if (!configHelper.hasApiKey()) {
+      safeLogger.mainLog("No API key found in configuration. User will need to set up.")
+    }
     
     initializeHelpers();
     initializeIpcHandlers({
