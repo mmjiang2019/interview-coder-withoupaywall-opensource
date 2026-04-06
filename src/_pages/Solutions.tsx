@@ -210,7 +210,6 @@ const Solutions: React.FC<SolutionsProps> = ({
     const fetchScreenshots = async () => {
       try {
         const existing = await window.electronAPI.getScreenshots()
-        console.log("Raw screenshot data:", existing)
         const screenshots = (Array.isArray(existing) ? existing : []).map(
           (p) => ({
             id: p.path,
@@ -219,10 +218,9 @@ const Solutions: React.FC<SolutionsProps> = ({
             timestamp: Date.now()
           })
         )
-        console.log("Processed screenshots:", screenshots)
         setExtraScreenshots(screenshots)
       } catch (error) {
-        console.error("Error loading extra screenshots:", error)
+        showToast("Error", "Failed to load screenshots", "error")
         setExtraScreenshots([])
       }
     }
@@ -270,7 +268,7 @@ const Solutions: React.FC<SolutionsProps> = ({
           )
           setExtraScreenshots(screenshots)
         } catch (error) {
-          console.error("Error loading extra screenshots:", error)
+          showToast("Error", "Failed to load screenshots", "error")
         }
       }),
       window.electronAPI.onResetView(() => {
@@ -320,15 +318,14 @@ const Solutions: React.FC<SolutionsProps> = ({
         setThoughtsData(solution?.thoughts || null)
         setTimeComplexityData(solution?.time_complexity || null)
         setSpaceComplexityData(solution?.space_complexity || null)
-        console.error("Processing error:", error)
+
       }),
       //when the initial solution is generated, we'll set the solution data to that
       window.electronAPI.onSolutionSuccess((data) => {
         if (!data) {
-          console.warn("Received empty or invalid solution data")
+          showToast("Warning", "Received empty or invalid solution data", "warning")
           return
         }
-        console.log({ data })
         const solutionData = {
           code: data.code,
           thoughts: data.thoughts,
@@ -355,7 +352,7 @@ const Solutions: React.FC<SolutionsProps> = ({
               })) || []
             setExtraScreenshots(screenshots)
           } catch (error) {
-            console.error("Error loading extra screenshots:", error)
+            showToast("Error", "Failed to load screenshots", "error")
             setExtraScreenshots([])
           }
         }
@@ -442,25 +439,23 @@ const Solutions: React.FC<SolutionsProps> = ({
       )
 
       if (response.success) {
-        // Fetch and update screenshots after successful deletion
-        const existing = await window.electronAPI.getScreenshots()
-        const screenshots = (Array.isArray(existing) ? existing : []).map(
-          (p) => ({
-            id: p.path,
-            path: p.path,
-            preview: p.preview,
-            timestamp: Date.now()
-          })
-        )
-        setExtraScreenshots(screenshots)
-      } else {
-        console.error("Failed to delete extra screenshot:", response.error)
+          // Fetch and update screenshots after successful deletion
+          const existing = await window.electronAPI.getScreenshots()
+          const screenshots = (Array.isArray(existing) ? existing : []).map(
+            (p) => ({
+              id: p.path,
+              path: p.path,
+              preview: p.preview,
+              timestamp: Date.now()
+            })
+          )
+          setExtraScreenshots(screenshots)
+        } else {
+          showToast("Error", "Failed to delete the screenshot", "error")
+        }
+      } catch (error) {
         showToast("Error", "Failed to delete the screenshot", "error")
       }
-    } catch (error) {
-      console.error("Error deleting extra screenshot:", error)
-      showToast("Error", "Failed to delete the screenshot", "error")
-    }
   }
 
   return (

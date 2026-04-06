@@ -97,7 +97,7 @@ function App() {
           }, 1000)
         }
       } catch (error) {
-        console.error("Failed to check API key:", error)
+        showToast("Error", "Failed to check API key", "error")
       }
     }
     
@@ -128,7 +128,7 @@ function App() {
           }
         });
         
-        console.log(`Enabled ${selectElements.length} select elements and ${customDropdowns.length} custom dropdowns`);
+
       }, 1000);
       
       return () => clearTimeout(timer);
@@ -138,7 +138,6 @@ function App() {
   // Listen for settings dialog open requests
   useEffect(() => {
     const unsubscribeSettings = window.electronAPI.onShowSettings(() => {
-      console.log("Show settings dialog requested");
       setIsSettingsOpen(true);
     });
     
@@ -170,7 +169,7 @@ function App() {
         
         markInitialized()
       } catch (error) {
-        console.error("Failed to initialize app:", error)
+        showToast("Error", "Failed to initialize app", "error")
         // Fallback to defaults
         updateLanguage("python")
         markInitialized()
@@ -195,7 +194,6 @@ function App() {
     // Define a no-op handler for solution success
     const unsubscribeSolutionSuccess = window.electronAPI.onSolutionSuccess(
       () => {
-        console.log("Solution success - no credits deducted in this version")
         // No credit deduction in this version
       }
     )
@@ -211,12 +209,10 @@ function App() {
 
   // API Key dialog management
   const handleOpenSettings = useCallback(() => {
-    console.log('Opening settings dialog');
     setIsSettingsOpen(true);
   }, []);
   
   const handleCloseSettings = useCallback((open: boolean) => {
-    console.log('Settings dialog state changed:', open);
     setIsSettingsOpen(open);
   }, []);
 
@@ -231,7 +227,6 @@ function App() {
         window.location.reload()
       }, 1500)
     } catch (error) {
-      console.error("Failed to save API key:", error)
       showToast("Error", "Failed to save API key", "error")
     }
   }, [showToast])

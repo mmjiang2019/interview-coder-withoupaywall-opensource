@@ -1,4 +1,3 @@
-console.log("Preload script starting...")
 import { contextBridge, ipcRenderer } from "electron"
 const { shell } = require("electron")
 
@@ -22,8 +21,7 @@ export const PROCESSING_EVENTS = {
   DEBUG_ERROR: "debug-error"
 } as const
 
-// At the top of the file
-console.log("Preload script is running")
+
 
 const electronAPI = {
   // Original methods
@@ -38,13 +36,10 @@ const electronAPI = {
   deleteScreenshot: (path: string) =>
     ipcRenderer.invoke("delete-screenshot", path),
   toggleMainWindow: async () => {
-    console.log("toggleMainWindow called from preload")
     try {
       const result = await ipcRenderer.invoke("toggle-window")
-      console.log("toggle-window result:", result)
       return result
     } catch (error) {
-      console.error("Error in toggleMainWindow:", error)
       throw error
     }
   },
@@ -241,16 +236,8 @@ const electronAPI = {
   getModels: (provider: string, apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string) => ipcRenderer.invoke("get-models", provider, apiKey, accessKeyId, secretAccessKey, keyword)
 }
 
-// Before exposing the API
-console.log(
-  "About to expose electronAPI with methods:",
-  Object.keys(electronAPI)
-)
-
 // Expose the API
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
-
-console.log("electronAPI exposed to window")
 
 // Add this focus restoration handler
 ipcRenderer.on("restore-focus", () => {

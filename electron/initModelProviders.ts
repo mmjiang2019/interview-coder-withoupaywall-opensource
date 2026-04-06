@@ -6,6 +6,7 @@ import { AnthropicProvider } from './providers/AnthropicProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { ByteDanceProvider } from './providers/ByteDanceProvider';
 import { ZhipuProvider } from './providers/ZhipuProvider';
+import { safeLogger } from './SafeLogger';
 
 export function initializeModelProviders() {
   const registry = ModelProviderRegistry.getInstance();
@@ -22,10 +23,10 @@ export function initializeModelProviders() {
 
   providers.forEach(provider => {
     registry.registerProvider(provider);
-    console.log(`Registered provider: ${provider.displayName}`);
+    safeLogger.mainLog(`Registered provider: ${provider.displayName}`);
   });
   
-  console.log('All model providers initialized');
+  safeLogger.mainLog('All model providers initialized');
 }
 
 // Export providers for direct access if needed

@@ -10,35 +10,28 @@ export const UpdateNotification: React.FC = () => {
   const { showToast } = useToast()
 
   useEffect(() => {
-    console.log("UpdateNotification: Setting up event listeners")
-
     const unsubscribeAvailable = window.electronAPI.onUpdateAvailable(
       (info) => {
-        console.log("UpdateNotification: Update available received", info)
         setUpdateAvailable(true)
       }
     )
 
     const unsubscribeDownloaded = window.electronAPI.onUpdateDownloaded(
       (info) => {
-        console.log("UpdateNotification: Update downloaded received", info)
         setUpdateDownloaded(true)
         setIsDownloading(false)
       }
     )
 
     return () => {
-      console.log("UpdateNotification: Cleaning up event listeners")
       unsubscribeAvailable()
       unsubscribeDownloaded()
     }
   }, [])
 
   const handleStartUpdate = async () => {
-    console.log("UpdateNotification: Starting update download")
     setIsDownloading(true)
     const result = await window.electronAPI.startUpdate()
-    console.log("UpdateNotification: Update download result", result)
     if (!result.success) {
       setIsDownloading(false)
       showToast("Error", "Failed to download update", "error")
@@ -46,15 +39,9 @@ export const UpdateNotification: React.FC = () => {
   }
 
   const handleInstallUpdate = () => {
-    console.log("UpdateNotification: Installing update")
     window.electronAPI.installUpdate()
   }
 
-  console.log("UpdateNotification: Render state", {
-    updateAvailable,
-    updateDownloaded,
-    isDownloading
-  })
   if (!updateAvailable && !updateDownloaded) return null
 
   return (

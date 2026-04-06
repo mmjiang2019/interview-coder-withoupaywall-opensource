@@ -165,7 +165,6 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           }
         })
         .catch((error: unknown) => {
-          console.error("Failed to load config:", error);
           showToast("Error", "Failed to load settings", "error");
           // 使用默认配置
           setDefaultModels("openai");
@@ -198,14 +197,13 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         setSecretAccessKey(providerModelSettings.secretAccessKey || "");
       })
       .catch((error: unknown) => {
-        console.error("Failed to load config for provider change:", error);
-        // 出错时使用默认模型
-        setApiProvider(provider);
-        setApiKey("");
-        setDefaultModels(provider);
-        setAccessKeyId("");
-        setSecretAccessKey("");
-      });
+          // 出错时使用默认模型
+          setApiProvider(provider);
+          setApiKey("");
+          setDefaultModels(provider);
+          setAccessKeyId("");
+          setSecretAccessKey("");
+        });
   };
 
   // Handle API key change
@@ -251,7 +249,6 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         }, 1500);
       }
     } catch (error) {
-      console.error("Failed to save settings:", error);
       showToast("Error", "Failed to save settings", "error");
     } finally {
       setIsLoading(false);

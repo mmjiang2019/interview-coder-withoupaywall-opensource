@@ -1,18 +1,19 @@
 import { autoUpdater } from "electron-updater"
 import { BrowserWindow, ipcMain, app } from "electron"
 import log from "electron-log"
+import { safeLogger } from "./SafeLogger"
 
 export function initAutoUpdater() {
-  console.log("Initializing auto-updater...")
+  safeLogger.mainLog("Initializing auto-updater...")
 
   // Skip update checks in development
   if (!app.isPackaged) {
-    console.log("Skipping auto-updater in development mode")
+    safeLogger.mainLog("Skipping auto-updater in development mode")
     return
   }
 
   if (!process.env.GH_TOKEN) {
-    console.error("GH_TOKEN environment variable is not set")
+    safeLogger.mainError("GH_TOKEN environment variable is not set")
     return
   }
 
@@ -25,85 +26,85 @@ export function initAutoUpdater() {
   // Enable more verbose logging
   autoUpdater.logger = log
   log.transports.file.level = "debug"
-  console.log(
+  safeLogger.mainLog(
     "Auto-updater logger configured with level:",
     log.transports.file.level
   )
 
   // Log all update events
   autoUpdater.on("checking-for-update", () => {
-    console.log("Checking for updates...")
+    safeLogger.mainLog("Checking for updates...")
   })
 
   autoUpdater.on("update-available", (info) => {
-    console.log("Update available:", info)
+    safeLogger.mainLog("Update available:", info)
     // Notify renderer process about available update
     BrowserWindow.getAllWindows().forEach((window) => {
-      console.log("Sending update-available to window")
+      safeLogger.mainLog("Sending update-available to window")
       window.webContents.send("update-available", info)
     })
   })
 
   autoUpdater.on("update-not-available", (info) => {
-    console.log("Update not available:", info)
+    safeLogger.mainLog("Update not available:", info)
   })
 
   autoUpdater.on("download-progress", (progressObj) => {
-    console.log("Download progress:", progressObj)
+    safeLogger.mainLog("Download progress:", progressObj)
   })
 
   autoUpdater.on("update-downloaded", (info) => {
-    console.log("Update downloaded:", info)
+    safeLogger.mainLog("Update downloaded:", info)
     // Notify renderer process that update is ready to install
     BrowserWindow.getAllWindows().forEach((window) => {
-      console.log("Sending update-downloaded to window")
+      safeLogger.mainLog("Sending update-downloaded to window")
       window.webContents.send("update-downloaded", info)
     })
   })
 
   autoUpdater.on("error", (err) => {
-    console.error("Auto updater error:", err)
+    safeLogger.mainError("Auto updater error:", err)
   })
 
   // Check for updates immediately
-  console.log("Checking for updates...")
+  safeLogger.mainLog("Checking for updates...")
   autoUpdater
     .checkForUpdates()
     .then((result) => {
-      console.log("Update check result:", result)
+      safeLogger.mainLog("Update check result:", result)
     })
     .catch((err) => {
-      console.error("Error checking for updates:", err)
+      safeLogger.mainError("Error checking for updates:", err)
     })
 
   // Set up update checking interval (every 1 hour)
   setInterval(() => {
-    console.log("Checking for updates (interval)...")
+    safeLogger.mainLog("Checking for updates (interval)...")
     autoUpdater
       .checkForUpdates()
       .then((result) => {
-        console.log("Update check result (interval):", result)
+        safeLogger.mainLog("Update check result (interval):", result)
       })
       .catch((err) => {
-        console.error("Error checking for updates (interval):", err)
+        safeLogger.mainError("Error checking for updates (interval):", err)
       })
   }, 60 * 60 * 1000)
 
   // Handle IPC messages from renderer
   ipcMain.handle("start-update", async () => {
-    console.log("Start update requested")
+    safeLogger.mainLog("Start update requested")
     try {
       await autoUpdater.downloadUpdate()
-      console.log("Update download completed")
+      safeLogger.mainLog("Update download completed")
       return { success: true }
     } catch (error) {
-      console.error("Failed to start update:", error)
+      safeLogger.mainError("Failed to start update:", error)
       return { success: false, error: error.message }
     }
   })
 
   ipcMain.handle("install-update", () => {
-    console.log("Install update requested")
+    safeLogger.mainLog("Install update requested")
     autoUpdater.quitAndInstall()
   })
 }

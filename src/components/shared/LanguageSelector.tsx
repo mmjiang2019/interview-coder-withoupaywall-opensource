@@ -24,9 +24,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       // Update state in React
       setLanguage(newLanguage)
       
-      console.log(`Language changed to ${newLanguage}`);
     } catch (error) {
-      console.error("Error updating language:", error)
     }
   }
 

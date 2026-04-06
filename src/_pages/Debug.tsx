@@ -56,7 +56,6 @@ const CodeSection = ({
 async function fetchScreenshots(): Promise<Screenshot[]> {
   try {
     const existing = await window.electronAPI.getScreenshots()
-    console.log("Raw screenshot data in Debug:", existing)
     return (Array.isArray(existing) ? existing : []).map((p) => ({
       id: p.path,
       path: p.path,
@@ -64,7 +63,6 @@ async function fetchScreenshots(): Promise<Screenshot[]> {
       timestamp: Date.now()
     }))
   } catch (error) {
-    console.error("Error loading screenshots:", error)
     throw error
   }
 }
@@ -119,7 +117,6 @@ const Debug: React.FC<DebugProps> = ({
 
     // If we have cached data, set all state variables to the cached data
     if (newSolution) {
-      console.log("Found cached debug solution:", newSolution);
       
       if (newSolution.debug_analysis) {
         // Store the debug analysis in its own state variable
@@ -150,7 +147,6 @@ const Debug: React.FC<DebugProps> = ({
       window.electronAPI.onScreenshotTaken(() => refetch()),
       window.electronAPI.onResetView(() => refetch()),
       window.electronAPI.onDebugSuccess((data) => {
-        console.log("Debug success event received with data:", data);
         queryClient.setQueryData(["new_solution"], data);
         
         // Also update local state for immediate rendering
@@ -204,7 +200,6 @@ const Debug: React.FC<DebugProps> = ({
           "error"
         )
         setIsProcessing(false)
-        console.error("Processing error:", error)
       })
     ]
 
@@ -251,10 +246,10 @@ const Debug: React.FC<DebugProps> = ({
       if (response.success) {
         refetch()
       } else {
-        console.error("Failed to delete extra screenshot:", response.error)
+        showToast("Error", "Failed to delete the screenshot", "error")
       }
     } catch (error) {
-      console.error("Error deleting extra screenshot:", error)
+      showToast("Error", "Failed to delete the screenshot", "error")
     }
   }
 

@@ -1,5 +1,6 @@
 import { AIProvider } from '../clients/AIClientFactory';
 import { providerDefaultsMap, getDefaultModelsByProvider } from '../../src/config/models';
+import { safeLogger } from '../SafeLogger';
 
 // 自定义模型接口
 export interface CustomModel {
@@ -180,7 +181,7 @@ export class ModelConfigManager {
         this.config = { ...this.config, ...savedConfig };
       }
     } catch (error) {
-      console.error('Failed to load config:', error);
+      safeLogger.mainError('Failed to load config:', error);
       // 使用默认配置
       this.config = this.getDefaultConfig();
     }
@@ -200,7 +201,7 @@ export class ModelConfigManager {
       // 写入配置文件
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
     } catch (error) {
-      console.error('Failed to save config:', error);
+      safeLogger.mainError('Failed to save config:', error);
     }
   }
 
@@ -358,15 +359,15 @@ export class ModelConfigManager {
     }
     
     if (!hasChanges) {
-      console.log(`[ModelConfigManager] No actual changes in config, skipping update`);
+      safeLogger.mainLog(`[ModelConfigManager] No actual changes in config, skipping update`);
       return;
     }
     
-    console.log(`[ModelConfigManager] Updating config with:`, updates);
+    safeLogger.mainLog(`[ModelConfigManager] Updating config with:`, updates);
     this.config = updatedConfig;
-    console.log(`[ModelConfigManager] Config updated successfully`);
+    safeLogger.mainLog(`[ModelConfigManager] Config updated successfully`);
     this.saveConfig();
-    console.log(`[ModelConfigManager] Config saved to file`);
+    safeLogger.mainLog(`[ModelConfigManager] Config saved to file`);
     this.notifyChangeHandlers();
   }
 
@@ -465,30 +466,30 @@ export class ModelConfigManager {
 
   public onConfigChange(handler: ConfigChangeHandler): void {
     const handlerId = Math.random().toString(36).substr(2, 9);
-    console.log(`[ModelConfigManager] Registering config change handler with ID: ${handlerId}`);
+    safeLogger.mainLog(`[ModelConfigManager] Registering config change handler with ID: ${handlerId}`);
     // 为了调试，我们可以给handler添加一个id属性
     (handler as any)._handlerId = handlerId;
     this.changeHandlers.push(handler);
-    console.log(`[ModelConfigManager] Total registered handlers: ${this.changeHandlers.length}`);
+    safeLogger.mainLog(`[ModelConfigManager] Total registered handlers: ${this.changeHandlers.length}`);
   }
 
   public offConfigChange(handler: ConfigChangeHandler): void {
     const handlerId = (handler as any)._handlerId || 'unknown';
-    console.log(`[ModelConfigManager] Removing config change handler with ID: ${handlerId}`);
+    safeLogger.mainLog(`[ModelConfigManager] Removing config change handler with ID: ${handlerId}`);
     this.changeHandlers = this.changeHandlers.filter(h => h !== handler);
-    console.log(`[ModelConfigManager] Total registered handlers after removal: ${this.changeHandlers.length}`);
+    safeLogger.mainLog(`[ModelConfigManager] Total registered handlers after removal: ${this.changeHandlers.length}`);
   }
 
   private notifyChangeHandlers(): void {
-    console.log(`[ModelConfigManager] Notifying ${this.changeHandlers.length} config change handlers`);
+    safeLogger.mainLog(`[ModelConfigManager] Notifying ${this.changeHandlers.length} config change handlers`);
     this.changeHandlers.forEach((handler, index) => {
       const handlerId = (handler as any)._handlerId || `handler_${index}`;
-      console.log(`[ModelConfigManager] Notifying handler ${handlerId} (${index + 1}/${this.changeHandlers.length})`);
+      safeLogger.mainLog(`[ModelConfigManager] Notifying handler ${handlerId} (${index + 1}/${this.changeHandlers.length})`);
       try {
         handler(this.getConfig());
-        console.log(`[ModelConfigManager] Handler ${handlerId} notified successfully`);
+        safeLogger.mainLog(`[ModelConfigManager] Handler ${handlerId} notified successfully`);
       } catch (error) {
-        console.error(`[ModelConfigManager] Error in config change handler ${handlerId}:`, error);
+        safeLogger.mainError(`[ModelConfigManager] Error in config change handler ${handlerId}:`, error);
       }
     });
   }

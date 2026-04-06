@@ -1,6 +1,7 @@
 import { AIProvider } from '../clients/AIClientFactory';
 import { modelConfigManager } from '../config/ModelConfigManager';
 import { modelManager } from './ModelManager';
+import { safeLogger } from '../SafeLogger';
 
 // 模型切换状态
 export type SwitchStatus = 'idle' | 'switching' | 'completed' | 'failed';
@@ -38,7 +39,7 @@ export class ModelSwitchManager {
    */
   private handleConfigChange(config: any): void {
     // 这里可以添加逻辑，当 API 提供者变更时处理切换
-    console.log('Config changed, checking for provider switch...');
+    safeLogger.mainLog('Config changed, checking for provider switch...');
   }
 
   /**
@@ -49,13 +50,13 @@ export class ModelSwitchManager {
     
     // 如果目标提供者与当前提供者相同，直接返回
     if (fromProvider === toProvider) {
-      console.log(`Already using ${toProvider}, no switch needed`);
+      safeLogger.mainLog(`Already using ${toProvider}, no switch needed`);
       return true;
     }
 
     // 如果正在切换，返回 false
     if (this.switchStatus === 'switching') {
-      console.log('Already switching providers, please wait');
+      safeLogger.mainLog('Already switching providers, please wait');
       return false;
     }
 
@@ -67,7 +68,7 @@ export class ModelSwitchManager {
     try {
       // 检查是否有正在进行的请求
       if (this.pendingRequests.size > 0) {
-        console.log(`Waiting for ${this.pendingRequests.size} pending requests to complete...`);
+        safeLogger.mainLog(`Waiting for ${this.pendingRequests.size} pending requests to complete...`);
         // 这里可以添加逻辑，等待所有请求完成
         // 为了简单起见，我们暂时不等待，直接切换
       }
@@ -88,14 +89,14 @@ export class ModelSwitchManager {
       this.switchStatus = 'completed';
       this.notifySwitchHandlers('completed', fromProvider, toProvider);
       this.currentSwitch = null;
-      console.log(`Successfully switched from ${fromProvider} to ${toProvider}`);
+      safeLogger.mainLog(`Successfully switched from ${fromProvider} to ${toProvider}`);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.switchStatus = 'failed';
       this.notifySwitchHandlers('failed', fromProvider, toProvider, errorMessage);
       this.currentSwitch = null;
-      console.error(`Failed to switch provider: ${errorMessage}`);
+      safeLogger.mainError(`Failed to switch provider: ${errorMessage}`);
       return false;
     }
   }
@@ -144,13 +145,13 @@ export class ModelSwitchManager {
       this.switchStatus = 'completed';
       this.notifySwitchHandlers('completed', fromProvider, toProvider);
       this.currentSwitch = null;
-      console.log(`Successfully switched from ${fromProvider} to ${toProvider}`);
+      safeLogger.mainLog(`Successfully switched from ${fromProvider} to ${toProvider}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.switchStatus = 'failed';
       this.notifySwitchHandlers('failed', fromProvider, toProvider, errorMessage);
       this.currentSwitch = null;
-      console.error(`Failed to switch provider: ${errorMessage}`);
+      safeLogger.mainError(`Failed to switch provider: ${errorMessage}`);
     }
   }
 
@@ -188,10 +189,10 @@ export class ModelSwitchManager {
   private notifySwitchHandlers(status: SwitchStatus, fromProvider: AIProvider, toProvider: AIProvider, error?: string): void {
     this.switchHandlers.forEach(handler => {
       try {
-        handler(status, fromProvider, toProvider, error);
-      } catch (err) {
-        console.error('Error in switch handler:', err);
-      }
+          handler(status, fromProvider, toProvider, error);
+        } catch (err) {
+          safeLogger.mainError('Error in switch handler:', err);
+        }
     });
   }
 
@@ -203,7 +204,7 @@ export class ModelSwitchManager {
     
     // 如果目标提供者与当前提供者相同，直接返回
     if (fromProvider === toProvider) {
-      console.log(`Already using ${toProvider}, no switch needed`);
+      safeLogger.mainLog(`Already using ${toProvider}, no switch needed`);
       return true;
     }
 
@@ -232,14 +233,14 @@ export class ModelSwitchManager {
       this.switchStatus = 'completed';
       this.notifySwitchHandlers('completed', fromProvider, toProvider);
       this.currentSwitch = null;
-      console.log(`Successfully switched from ${fromProvider} to ${toProvider} (forced)`);
+      safeLogger.mainLog(`Successfully switched from ${fromProvider} to ${toProvider} (forced)`);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.switchStatus = 'failed';
       this.notifySwitchHandlers('failed', fromProvider, toProvider, errorMessage);
       this.currentSwitch = null;
-      console.error(`Failed to switch provider: ${errorMessage}`);
+      safeLogger.mainError(`Failed to switch provider: ${errorMessage}`);
       return false;
     }
   }

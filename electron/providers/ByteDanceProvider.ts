@@ -4,6 +4,7 @@ import { OpenAI } from 'openai';
 import { getDefaultModel } from '../../src/config/models';
 import { modelConfigManager } from '../config/ModelConfigManager';
 import * as crypto from 'crypto';
+import { safeLogger } from '../SafeLogger';
 
 export class ByteDanceProvider extends BaseModelProvider {
   name = 'bytedance';
@@ -309,22 +310,22 @@ If you include code examples, use proper markdown code blocks with language spec
   }
 
   async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
-    console.log('[ByteDanceProvider] Starting to fetch models');
+    safeLogger.mainLog('[ByteDanceProvider] Starting to fetch models');
     
     const config = modelConfigManager.getConfig();
     const currentProviderConfig = config.providerConfigs[config.apiProvider];
     const ak = currentProviderConfig.accessKeyId || accessKeyId;
     const sk = currentProviderConfig.secretAccessKey || secretAccessKey;
     
-    console.log('[ByteDanceProvider] Received parameters:');
-    console.log('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
-    console.log('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
-    console.log('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
-    console.log('[ByteDanceProvider] keyword:', keyword || 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] Received parameters:');
+    safeLogger.mainLog('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] keyword:', keyword || 'not provided');
     
     try {
       if (!ak || !sk) {
-        console.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
+        safeLogger.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
         throw new Error('Access Key ID and Secret Access Key are required for ByteDance API');
       }
       
@@ -340,7 +341,7 @@ If you include code examples, use proper markdown code blocks with language spec
           }
         })
       });
-      console.log('[ByteDanceProvider] Request body:', requestBody);
+      safeLogger.mainLog('[ByteDanceProvider] Request body:', requestBody);
       
       const query = {
         Action: 'ListFoundationModels',
@@ -358,16 +359,16 @@ If you include code examples, use proper markdown code blocks with language spec
         body: requestBody
       });
       
-      console.log('[ByteDanceProvider] Authorization:', authorization);
-      console.log('[ByteDanceProvider] X-Date:', xDate);
-      console.log('[ByteDanceProvider] X-Content-Sha256:', contentSha256);
+      safeLogger.mainLog('[ByteDanceProvider] Authorization:', authorization);
+      safeLogger.mainLog('[ByteDanceProvider] X-Date:', xDate);
+      safeLogger.mainLog('[ByteDanceProvider] X-Content-Sha256:', contentSha256);
       
       const queryString = Object.keys(query)
         .sort()
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
         .join('&');
       
-      console.log('[ByteDanceProvider] Making API request to fetch models');
+      safeLogger.mainLog('[ByteDanceProvider] Making API request to fetch models');
       const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryString}`, {
         method: 'POST',
         headers: {
@@ -380,17 +381,17 @@ If you include code examples, use proper markdown code blocks with language spec
         body: requestBody
       });
       
-      console.log('[ByteDanceProvider] API response status:', response.status);
+      safeLogger.mainLog('[ByteDanceProvider] API response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[ByteDanceProvider] API request failed:', errorText);
+        safeLogger.mainError('[ByteDanceProvider] API request failed:', errorText);
         throw new Error(`API request failed with status ${response.status}: ${errorText}`);
       }
       
       const data = await response.json();
-      console.log('[ByteDanceProvider] API response data:', JSON.stringify(data, null, 2));
+      safeLogger.mainLog('[ByteDanceProvider] API response data:', JSON.stringify(data, null, 2));
       const models = data.Result?.Items || [];
-      console.log('[ByteDanceProvider] Found', models.length, 'models');
+      safeLogger.mainLog('[ByteDanceProvider] Found', models.length, 'models');
       
       const modelList: Array<{ id: string; name: string; description: string }> = models.map((model: any) => ({
         id: model.Name,
@@ -398,11 +399,11 @@ If you include code examples, use proper markdown code blocks with language spec
         description: model.Description || `ByteDance model: ${model.Name}`
       }));
       
-      console.log('[ByteDanceProvider] Generated model list:', modelList);
+      safeLogger.mainLog('[ByteDanceProvider] Generated model list:', modelList);
       return modelList;
     } catch (error: any) {
-      console.error('[ByteDanceProvider] Error fetching ByteDance models:', error.message);
-      console.log('[ByteDanceProvider] Using default models due to error');
+      safeLogger.mainError('[ByteDanceProvider] Error fetching ByteDance models:', error.message);
+      safeLogger.mainLog('[ByteDanceProvider] Using default models due to error');
       return [
         {
           id: 'doubao-seed-2-0-pro-260215',

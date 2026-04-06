@@ -9,6 +9,7 @@ import { ModelProviderRegistry } from './ModelProviderRegistry';
 import { modelConfigManager } from './config/ModelConfigManager';
 import { modelSwitchManager } from './models/ModelSwitchManager';
 import { v4 as uuidv4 } from 'uuid';
+import { safeLogger } from './SafeLogger';
 
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
@@ -89,12 +90,12 @@ export class ProcessingHelper {
       
       // 检查提供者是否变化
       if (this.currentProvider === config.apiProvider && this.currentClient) {
-        console.log(`[ProcessingHelper] Client for ${config.apiProvider} already initialized, skipping`);
+        safeLogger.mainLog(`[ProcessingHelper] Client for ${config.apiProvider} already initialized, skipping`);
         return;
       }
       
       if (!provider) {
-        console.warn(`[ProcessingHelper] Unknown provider: ${config.apiProvider}`);
+        safeLogger.warn(`[ProcessingHelper] Unknown provider: ${config.apiProvider}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
@@ -103,7 +104,7 @@ export class ProcessingHelper {
       // Validate API key before initializing client
       const apiKey = config.apiKeys[config.apiProvider];
       if (!apiKey) {
-        console.warn(`[ProcessingHelper] No API key found for ${provider.displayName}`);
+        safeLogger.warn(`[ProcessingHelper] No API key found for ${provider.displayName}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
@@ -111,18 +112,18 @@ export class ProcessingHelper {
       
       const validation = await provider.validateApiKey(apiKey);
       if (!validation.valid) {
-        console.warn(`[ProcessingHelper] Invalid API key for ${provider.displayName}: ${validation.error}`);
+        safeLogger.warn(`[ProcessingHelper] Invalid API key for ${provider.displayName}: ${validation.error}`);
         this.currentClient = null;
         this.currentProvider = null;
         return;
       }
       
-      console.log(`[ProcessingHelper] Initializing client for ${provider.displayName}`);
+      safeLogger.mainLog(`[ProcessingHelper] Initializing client for ${provider.displayName}`);
       this.currentClient = await provider.getClient(apiKey);
       this.currentProvider = config.apiProvider;
-      console.log(`[ProcessingHelper] ${provider.displayName} client initialized successfully`);
+      safeLogger.mainLog(`[ProcessingHelper] ${provider.displayName} client initialized successfully`);
     } catch (error) {
-      console.error("[ProcessingHelper] Failed to initialize AI client:", error);
+      safeLogger.mainError("[ProcessingHelper] Failed to initialize AI client:", error);
       this.currentClient = null;
       this.currentProvider = null;
     }
@@ -174,7 +175,7 @@ export class ProcessingHelper {
       await this.waitForInitialization(mainWindow)
       return 999 // Always return sufficient credits to work
     } catch (error) {
-      console.error("Error getting credits:", error)
+      safeLogger.mainError("Error getting credits:", error)
       return 999 // Unlimited credits as fallback
     }
   }
@@ -204,14 +205,14 @@ export class ProcessingHelper {
             return language;
           }
         } catch (err) {
-          console.warn("Could not get language from window", err);
+          safeLogger.warn("Could not get language from window", err);
         }
       }
       
       // Default fallback
       return "python";
     } catch (error) {
-      console.error("Error getting language:", error)
+      safeLogger.mainError("Error getting language:", error)
       return "python"
     }
   }
@@ -224,7 +225,7 @@ export class ProcessingHelper {
     const client = await this.getOrInitializeClient();
     if (!client) {
       const config = modelConfigManager.getConfig();
-      console.error(`${config.apiProvider} client not initialized`);
+      safeLogger.mainError(`${config.apiProvider} client not initialized`);
       mainWindow.webContents.send(
         this.deps.PROCESSING_EVENTS.API_KEY_INVALID
       );
@@ -232,7 +233,7 @@ export class ProcessingHelper {
     }
 
     const view = this.deps.getView()
-    console.log("Processing screenshots in view:", view)
+    safeLogger.mainLog("Processing screenshots in view:", view)
 
     if (view === "queue") {
       await this.processMainQueue(mainWindow);
@@ -247,11 +248,11 @@ export class ProcessingHelper {
   private async processMainQueue(mainWindow: BrowserWindow): Promise<void> {
     mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
     const screenshotQueue = this.screenshotHelper.getScreenshotQueue()
-    console.log("Processing main queue screenshots:", screenshotQueue)
+    safeLogger.mainLog("Processing main queue screenshots:", screenshotQueue)
     
     // Check if the queue is empty
     if (!screenshotQueue || screenshotQueue.length === 0) {
-      console.log("No screenshots found in queue");
+      safeLogger.mainLog("No screenshots found in queue");
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
       return;
     }
@@ -259,7 +260,7 @@ export class ProcessingHelper {
     // Check that files actually exist
     const existingScreenshots = screenshotQueue.filter(path => fs.existsSync(path));
     if (existingScreenshots.length === 0) {
-      console.log("Screenshot files don't exist on disk");
+      safeLogger.mainLog("Screenshot files don't exist on disk");
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
       return;
     }
@@ -283,7 +284,7 @@ export class ProcessingHelper {
       }
 
       // Only set view to solutions if processing succeeded
-      console.log("Setting view to solutions after successful processing")
+      safeLogger.mainLog("Setting view to solutions after successful processing")
       mainWindow.webContents.send(
         this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
         result.data
@@ -301,11 +302,11 @@ export class ProcessingHelper {
    */
   private async processExtraQueue(mainWindow: BrowserWindow): Promise<void> {
     const extraScreenshotQueue = this.screenshotHelper.getExtraScreenshotQueue()
-    console.log("Processing extra queue screenshots:", extraScreenshotQueue)
+    safeLogger.mainLog("Processing extra queue screenshots:", extraScreenshotQueue)
     
     // Check if the extra queue is empty
     if (!extraScreenshotQueue || extraScreenshotQueue.length === 0) {
-      console.log("No extra screenshots found in queue");
+      safeLogger.mainLog("No extra screenshots found in queue");
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
       return;
     }
@@ -313,7 +314,7 @@ export class ProcessingHelper {
     // Check that files actually exist
     const existingExtraScreenshots = extraScreenshotQueue.filter(path => fs.existsSync(path));
     if (existingExtraScreenshots.length === 0) {
-      console.log("Extra screenshot files don't exist on disk");
+      safeLogger.mainLog("Extra screenshot files don't exist on disk");
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.NO_SCREENSHOTS);
       return;
     }
@@ -337,7 +338,7 @@ export class ProcessingHelper {
         throw new Error("Failed to load screenshot data for debugging");
       }
       
-      console.log(
+      safeLogger.mainLog(
         "Combined screenshots for processing:",
         validScreenshots.map((s) => s.path)
       )
@@ -384,7 +385,7 @@ export class ProcessingHelper {
       paths.map(async (path) => {
         try {
           if (!fs.existsSync(path)) {
-            console.warn(`Screenshot file does not exist: ${path}`);
+            safeLogger.warn(`Screenshot file does not exist: ${path}`);
             return null;
           }
           
@@ -394,7 +395,7 @@ export class ProcessingHelper {
             data: fs.readFileSync(path).toString('base64')
           };
         } catch (err) {
-          console.error(`Error reading screenshot ${path}:`, err);
+          safeLogger.mainError(`Error reading screenshot ${path}:`, err);
           return null;
         }
       })
@@ -408,7 +409,7 @@ export class ProcessingHelper {
    * Handle processing errors
    */
   private handleProcessingError(mainWindow: BrowserWindow, error: string): void {
-    console.log("Processing failed:", error)
+    safeLogger.mainLog("Processing failed:", error)
     if (error?.includes("API Key") || error?.includes("OpenAI") || error?.includes("Gemini")) {
       mainWindow.webContents.send(
         this.deps.PROCESSING_EVENTS.API_KEY_INVALID
@@ -420,7 +421,7 @@ export class ProcessingHelper {
       )
     }
     // Reset view back to queue on error
-    console.log("Resetting view to queue due to error")
+    safeLogger.mainLog("Resetting view to queue due to error")
     this.deps.setView("queue")
   }
 
@@ -577,7 +578,7 @@ export class ProcessingHelper {
       };
     }
 
-    console.error("API Error Details:", error);
+    safeLogger.mainError("API Error Details:", error);
     return { 
       success: false, 
       error: error.message || "Failed to process screenshots. Please try again." 
@@ -695,7 +696,7 @@ export class ProcessingHelper {
 
       return { success: true, data: response };
     } catch (error: any) {
-      console.error("Debug processing error:", error);
+      safeLogger.mainError("Debug processing error:", error);
       return { success: false, error: error.message || "Failed to process debug request" };
     } finally {
       // 完成请求

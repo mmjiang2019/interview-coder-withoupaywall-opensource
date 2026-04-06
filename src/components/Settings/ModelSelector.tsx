@@ -40,29 +40,23 @@ export function ModelSelector({
   // 当供应商或API key变化时，获取模型列表
   useEffect(() => {
     const fetchModels = async () => {
-      console.log(`[ModelSelector] useEffect triggered with provider=${provider}, apiKey=${apiKey ? '***' : 'not provided'}, accessKeyId=${accessKeyId ? '***' : 'not provided'}, secretAccessKey=${secretAccessKey ? '***' : 'not provided'}`);
       // 对于ByteDance，尝试从API获取模型列表
       if (provider === "bytedance" && apiKey) {
         setIsLoading(true);
         setError(null);
         try {
-          console.log(`[ModelSelector] Fetching models for ${provider} with API key`);
           const apiModels = await window.electronAPI.getModels(provider, apiKey, accessKeyId, secretAccessKey, searchFilter);
-          console.log(`[ModelSelector] Got models from API:`, apiModels);
           // 确保API返回的模型列表不为空
           if (apiModels && apiModels.length > 0) {
             setModels(apiModels);
           } else {
-            console.warn(`[ModelSelector] API returned empty model list, using default models`);
             setError("API returned empty model list. Using default models.");
             setModels(getModelsByProviderWithCustom(provider));
           }
         } catch (err) {
-          console.error(`[ModelSelector] Error fetching models:`, err);
           setError("Failed to fetch models. Using default models.");
           // 出错时使用默认模型
           const defaultModels = getModelsByProviderWithCustom(provider);
-          console.log(`[ModelSelector] Using default models:`, defaultModels);
           setModels(defaultModels);
         } finally {
           setIsLoading(false);
@@ -70,7 +64,6 @@ export function ModelSelector({
       } else {
         // 对于其他供应商，使用静态配置的模型列表
         const defaultModels = getModelsByProviderWithCustom(provider);
-        console.log(`[ModelSelector] Using default models for ${provider}:`, defaultModels);
         setModels(defaultModels);
       }
     };

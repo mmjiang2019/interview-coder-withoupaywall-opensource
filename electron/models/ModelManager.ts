@@ -1,6 +1,7 @@
 import { AIProvider } from '../clients/AIClientFactory';
 import { modelConfigManager } from '../config/ModelConfigManager';
 import { providerDefaultsMap } from '../../src/config/models';
+import { safeLogger } from '../SafeLogger';
 
 // 模型能力配置 - 按供应商定义
 const providerCapabilities: Record<AIProvider, string[]> = {
@@ -103,7 +104,7 @@ export class ModelManager {
       });
     });
     
-    console.log(`[ModelManager] Initialized ${this.modelMetadata.size} model metadata entries`);
+    safeLogger.mainLog(`[ModelManager] Initialized ${this.modelMetadata.size} model metadata entries`);
   }
   
   /**
@@ -267,7 +268,7 @@ export class ModelManager {
     
     // 检查提供者是否变化
     if (this.currentProvider === provider) {
-      console.log(`[ModelManager] Provider unchanged: ${provider}, skipping model update`);
+      safeLogger.mainLog(`[ModelManager] Provider unchanged: ${provider}, skipping model update`);
       return;
     }
     
@@ -277,7 +278,7 @@ export class ModelManager {
     // 这里可以添加逻辑，根据当前提供者动态获取可用模型
     // 例如，调用 API 获取提供者的模型列表
     
-    console.log(`[ModelManager] Updated models for provider: ${provider}`);
+    safeLogger.mainLog(`[ModelManager] Updated models for provider: ${provider}`);
   }
   
   // 跟踪当前提供者

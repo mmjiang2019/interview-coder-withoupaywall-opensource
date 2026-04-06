@@ -5,6 +5,7 @@ import { app } from "electron"
 import { EventEmitter } from "events"
 import { ModelProviderRegistry } from "./ModelProviderRegistry"
 import { getDefaultModel } from "../src/config/models";
+import { safeLogger } from "./SafeLogger";
 
 interface Config {
   apiKey: string;
@@ -37,9 +38,9 @@ export class ConfigHelper extends EventEmitter {
     // Use the app's user data directory to store the config
     try {
       this.configPath = path.join(app.getPath('userData'), 'config.json');
-      console.log('Config path:', this.configPath);
+      safeLogger.mainLog('Config path:', this.configPath);
     } catch (err) {
-      console.warn('Could not access user data path, using fallback');
+      safeLogger.warn('Could not access user data path, using fallback');
       this.configPath = path.join(process.cwd(), 'config.json');
     }
     
@@ -64,7 +65,7 @@ export class ConfigHelper extends EventEmitter {
         this.saveConfig(this.defaultConfig);
       }
     } catch (err) {
-      console.error("Error ensuring config exists:", err);
+      safeLogger.mainError("Error ensuring config exists:", err);
     }
   }
 
@@ -74,7 +75,7 @@ export class ConfigHelper extends EventEmitter {
   private sanitizeModelSelection(model: string, providerName: string): string {
     const provider = ModelProviderRegistry.getInstance().getProvider(providerName);
     if (!provider) {
-      console.warn(`Unknown provider: ${providerName}. Using model as-is`);
+      safeLogger.warn(`Unknown provider: ${providerName}. Using model as-is`);
       return model;
     }
     
@@ -116,7 +117,7 @@ export class ConfigHelper extends EventEmitter {
       this.saveConfig(this.defaultConfig);
       return this.defaultConfig;
     } catch (err) {
-      console.error("Error loading config:", err);
+      safeLogger.mainError("Error loading config:", err);
       return this.defaultConfig;
     }
   }
@@ -134,7 +135,7 @@ export class ConfigHelper extends EventEmitter {
       // Write the config file
       fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
     } catch (err) {
-      console.error("Error saving config:", err);
+      safeLogger.mainError("Error saving config:", err);
     }
   }
 
@@ -154,13 +155,13 @@ export class ConfigHelper extends EventEmitter {
         // If API key starts with "sk-", it's likely an OpenAI key
         if (updates.apiKey.trim().startsWith('sk-')) {
           provider = "openai";
-          console.log("Auto-detected OpenAI API key format");
+          safeLogger.mainLog("Auto-detected OpenAI API key format");
         } else if (updates.apiKey.trim().startsWith('sk-ant-')) {
           provider = "anthropic";
-          console.log("Auto-detected Anthropic API key format");
+          safeLogger.mainLog("Auto-detected Anthropic API key format");
         } else {
           provider = "gemini";
-          console.log("Using Gemini API key format (default)");
+          safeLogger.mainLog("Using Gemini API key format (default)");
         }
         
         // Update the provider in the updates object
@@ -205,7 +206,7 @@ export class ConfigHelper extends EventEmitter {
       
       return newConfig;
     } catch (error) {
-      console.error('Error updating config:', error);
+      safeLogger.mainError('Error updating config:', error);
       return this.defaultConfig;
     }
   }
