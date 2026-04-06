@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { app } from 'electron';
 
 class SafeLogger {
   private logDir: string;
@@ -9,8 +10,9 @@ class SafeLogger {
   private logFile: string;
 
   constructor() {
-    // 创建日志目录
-    this.logDir = path.join(process.cwd(), 'logs');
+    // 创建日志目录，参考ModelConfigManager的getConfigPath函数实现
+    this.logDir = this.getLogDirPath();
+    
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true });
     }
@@ -22,6 +24,14 @@ class SafeLogger {
 
     // 清理旧日志文件
     this.cleanupOldLogs();
+  }
+  
+  private getLogDirPath(): string {
+    const appDataPath = process.env.APPDATA || 
+                        (process.platform === 'darwin' ? 
+                         `${process.env.HOME}/Library/Application Support` : 
+                         `${process.env.HOME}/.config`);
+    return path.join(appDataPath, 'interview-coder-v1', 'logs');
   }
 
   private cleanupOldLogs() {

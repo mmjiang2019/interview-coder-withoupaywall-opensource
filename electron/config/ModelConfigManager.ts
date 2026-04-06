@@ -136,7 +136,7 @@ export class ModelConfigManager {
                         (process.platform === 'darwin' ? 
                          `${process.env.HOME}/Library/Application Support` : 
                          `${process.env.HOME}/.config`);
-    return `${appDataPath}/TraeAI/config.json`;
+    return `${appDataPath}/interview-coder-v1/config.json`;
   }
 
   private loadConfig(): void {
