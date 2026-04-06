@@ -3,6 +3,8 @@ import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { getDefaultModel } from '../../src/config/models';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { modelCacheManager, CachedModel } from '../config/ModelCacheManager';
+import { safeLogger } from '../SafeLogger';
 
 const ZHIPU_API_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
@@ -16,6 +18,42 @@ export class ZhipuProvider extends BaseModelProvider {
       solution: getDefaultModel('zhipu', 'solution'),
       debugging: getDefaultModel('zhipu', 'debugging')
     };
+  }
+
+  constructor() {
+    super();
+    // 启动定时更新模型列表的任务
+    this.startModelUpdateTask();
+  }
+
+  private startModelUpdateTask(): void {
+    modelCacheManager.startUpdateTask('zhipu', async () => {
+      try {
+        const config = modelConfigManager.getConfig();
+        const currentProviderConfig = config.providerConfigs['zhipu'];
+        const apiKey = currentProviderConfig.apiKey;
+
+        if (!apiKey) {
+          safeLogger.warn('[ZhipuProvider] API key not provided, cannot update model cache');
+          return [];
+        }
+
+        return await this.fetchModelsFromAPI(apiKey);
+      } catch (error) {
+        safeLogger.mainError('[ZhipuProvider] Error in model update task:', error);
+        return [];
+      }
+    });
+  }
+
+  private async fetchModelsFromAPI(apiKey: string): Promise<CachedModel[]> {
+    const client = await this.createClient(apiKey);
+    const models = await client.models.list();
+    return models.data.map(model => ({
+      id: model.id,
+      name: model.id,
+      description: (model as any).description ?? `Zhipu model: ${model.id}`
+    }));
   }
 
   protected async createClient(apiKey: string): Promise<OpenAI> {
@@ -44,18 +82,46 @@ export class ZhipuProvider extends BaseModelProvider {
     }
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
-      const client = await this.getClient(apiKey);
-      // Use OpenAI-compatible API to list models
-      const models = await client.models.list();
-      return models.data.map(model => ({
-        id: model.id,
-        name: model.id,
-        description: (model as any).description ?? `Zhipu model: ${model.id}`
-      }));
+      // 首先尝试从缓存获取模型列表
+      const cache = modelCacheManager.loadModelCache('zhipu');
+      if (cache && !modelCacheManager.isCacheExpired('zhipu')) {
+        safeLogger.mainLog('[ZhipuProvider] Using cached model list');
+        let modelList = cache.models;
+        
+        // 如果有关键字过滤
+        if (keyword) {
+          modelList = modelList.filter(model => 
+            model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.description.toLowerCase().includes(keyword.toLowerCase())
+          );
+          safeLogger.mainLog('[ZhipuProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+        }
+        
+        return modelList;
+      }
+      
+      // 缓存不存在或过期，从API获取
+      safeLogger.mainLog('[ZhipuProvider] Cache expired or not found, fetching from API');
+      const modelsFromAPI = await this.fetchModelsFromAPI(apiKey);
+      
+      // 保存到缓存
+      modelCacheManager.saveModelCache('zhipu', modelsFromAPI);
+      
+      // 如果有关键字过滤
+      let modelList = modelsFromAPI;
+      if (keyword) {
+        modelList = modelList.filter(model => 
+          model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          model.description.toLowerCase().includes(keyword.toLowerCase())
+        );
+        safeLogger.mainLog('[ZhipuProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+      }
+      
+      return modelList;
     } catch (error) {
-      console.error('Error fetching Zhipu models:', error);
+      safeLogger.mainError('Error fetching Zhipu models:', error);
       // Return default models on error
       return [
         {

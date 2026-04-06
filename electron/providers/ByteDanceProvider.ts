@@ -3,6 +3,7 @@ import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { getDefaultModel } from '../../src/config/models';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { modelCacheManager, CachedModel } from '../config/ModelCacheManager';
 import * as crypto from 'crypto';
 import { safeLogger } from '../SafeLogger';
 
@@ -16,6 +17,155 @@ export class ByteDanceProvider extends BaseModelProvider {
       solution: getDefaultModel('bytedance', 'solution'),
       debugging: getDefaultModel('bytedance', 'debugging')
     };
+  }
+
+  constructor() {
+    super();
+    // 启动定时更新模型列表的任务
+    this.startModelUpdateTask();
+  }
+
+  private startModelUpdateTask(): void {
+    modelCacheManager.startUpdateTask('bytedance', async () => {
+      try {
+        const config = modelConfigManager.getConfig();
+        const currentProviderConfig = config.providerConfigs['bytedance'];
+        const ak = currentProviderConfig.accessKeyId;
+        const sk = currentProviderConfig.secretAccessKey;
+
+        if (!ak || !sk) {
+          safeLogger.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, cannot update model cache');
+          return [];
+        }
+
+        return await this.fetchModelsFromAPI(ak, sk);
+      } catch (error) {
+        safeLogger.mainError('[ByteDanceProvider] Error in model update task:', error);
+        return [];
+      }
+    });
+  }
+
+  private async fetchModelsFromAPI(ak: string, sk: string): Promise<CachedModel[]> {
+    // 构建ListFoundationModels请求
+    const requestBody = JSON.stringify({
+      PageNumber: 1,
+      PageSize: 100,
+      SortOrder: 'Desc',
+      SortBy: 'CreateTime'
+    });
+
+    const query = {
+      Action: 'ListFoundationModels',
+      Version: '2024-01-01'
+    };
+
+    const { authorization, xDate, contentSha256 } = this.signRequest({
+      method: 'POST',
+      path: '/',
+      ak,
+      sk,
+      region: 'cn-beijing',
+      service: 'ark',
+      query,
+      body: requestBody
+    });
+
+    const queryString = Object.keys(query)
+      .sort()
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
+      .join('&');
+
+    const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryString}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Host': 'ark.cn-beijing.volcengineapi.com',
+        'X-Date': xDate,
+        'X-Content-Sha256': contentSha256,
+        'Authorization': authorization
+      },
+      body: requestBody
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const models = data.Result?.Items || [];
+
+    // 对每个基础模型，调用ListFoundationModelVersions获取其版本信息
+    const modelVersionsResults: CachedModel[] = [];
+
+    for (const model of models) {
+      const foundationModelName = model.Name;
+
+      // 构建ListFoundationModelVersions请求
+      const versionRequestBody = JSON.stringify({
+        FoundationModelName: foundationModelName,
+        PageNumber: 1,
+        PageSize: 100,
+        SortOrder: 'Desc',
+        SortBy: 'CreateTime',
+        Filter: {
+          Statuses: ["Published"]
+        }
+      });
+
+      const versionQuery = {
+        Action: 'ListFoundationModelVersions',
+        Version: '2024-01-01'
+      };
+
+      const { authorization: versionAuth, xDate: versionXDate, contentSha256: versionContentSha256 } = this.signRequest({
+        method: 'POST',
+        path: '/',
+        ak,
+        sk,
+        region: 'cn-beijing',
+        service: 'ark',
+        query: versionQuery,
+        body: versionRequestBody
+      });
+
+      const versionQueryString = Object.keys(versionQuery)
+        .sort()
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(versionQuery[key])}`)
+        .join('&');
+
+      const versionResponse = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${versionQueryString}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Host': 'ark.cn-beijing.volcengineapi.com',
+          'X-Date': versionXDate,
+          'X-Content-Sha256': versionContentSha256,
+          'Authorization': versionAuth
+        },
+        body: versionRequestBody
+      });
+
+      if (versionResponse.ok) {
+        const versionData = await versionResponse.json();
+        const versions = versionData.Result?.Items || [];
+
+        // 从结果中提取ModelId、Description、FoundationModelName
+        const modelVersions = versions.map((version: any) => ({
+          id: version.ModelId,
+          name: version.FoundationModelName,
+          description: `${version.Description || 'ByteDance model'} (${version.ModelId})`
+        }));
+
+        modelVersionsResults.push(...modelVersions);
+      }
+
+      // 添加延迟，避免API限流
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    return modelVersionsResults;
   }
 
   private client: OpenAI | null = null;
@@ -128,7 +278,7 @@ export class ByteDanceProvider extends BaseModelProvider {
     example_output?: string;
   }> {
     const config = modelConfigManager.getConfig();
-    const apiKey = config.apiKeys[this.name];
+    const apiKey = config.apiKeys[this.name as any];
     const client = await this.getClient(apiKey);
     const messages = [
       {
@@ -158,6 +308,9 @@ export class ByteDanceProvider extends BaseModelProvider {
     }, { signal: params.signal });
 
     const responseText = response.choices[0].message.content;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     const jsonText = responseText.replace(/```json|```/g, '').trim();
     return JSON.parse(jsonText);
   }
@@ -179,7 +332,7 @@ export class ByteDanceProvider extends BaseModelProvider {
     space_complexity: string;
   }> {
     const config = modelConfigManager.getConfig();
-    const apiKey = config.apiKeys[this.name];
+    const apiKey = config.apiKeys[this.name as any];
     const client = await this.getClient(apiKey);
     const promptText = `
 Generate a detailed solution for the following coding problem:
@@ -226,6 +379,9 @@ Your solution should be efficient, well-commented, and handle edge cases.
     }, { signal: params.signal });
 
     const responseText = response.choices[0].message.content;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     return this.parseSolutionResponse(responseText);
   }
 
@@ -248,7 +404,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
     space_complexity: string;
   }> {
     const config = modelConfigManager.getConfig();
-    const apiKey = config.apiKeys[this.name];
+    const apiKey = config.apiKeys[this.name as any];
     const client = await this.getClient(apiKey);
     const debugPrompt = `
 You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
@@ -306,104 +462,73 @@ If you include code examples, use proper markdown code blocks with language spec
     }, { signal: params.signal });
 
     const responseText = response.choices[0].message.content;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     return this.parseDebugResponse(responseText);
   }
 
   async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
-    // safeLogger.mainLog('[ByteDanceProvider] Starting to fetch models');
+    safeLogger.mainLog('[ByteDanceProvider] Starting to fetch models');
     
     const config = modelConfigManager.getConfig();
     const currentProviderConfig = config.providerConfigs[config.apiProvider];
     const ak = currentProviderConfig.accessKeyId || accessKeyId;
     const sk = currentProviderConfig.secretAccessKey || secretAccessKey;
     
-    // safeLogger.mainLog('[ByteDanceProvider] Received parameters:');
-    // safeLogger.mainLog('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
-    // safeLogger.mainLog('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
-    // safeLogger.mainLog('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
-    // safeLogger.mainLog('[ByteDanceProvider] keyword:', keyword || 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] Received parameters:');
+    safeLogger.mainLog('[ByteDanceProvider] apiKey:', apiKey ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] accessKeyId (from config):', ak ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] secretAccessKey (from config):', sk ? '***' : 'not provided');
+    safeLogger.mainLog('[ByteDanceProvider] keyword:', keyword || 'not provided');
     
     try {
       if (!ak || !sk) {
-        // safeLogger.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
+        safeLogger.warn('[ByteDanceProvider] Access Key ID or Secret Access Key not provided, using default models');
         throw new Error('Access Key ID and Secret Access Key are required for ByteDance API');
       }
       
-      // 构建请求体，包含关键字过滤条件
-      const requestBody = JSON.stringify({
-        PageNumber: 1,
-        PageSize: 100,
-        SortOrder: 'Desc',
-        SortBy: 'CreateTime',
-        ...(keyword && {
-          Filter: {
-            Name: keyword
-          }
-        })
-      });
-      // safeLogger.mainLog('[ByteDanceProvider] Request body:', requestBody);
-      
-      const query = {
-        Action: 'ListFoundationModels',
-        Version: '2024-01-01'
-      };
-      
-      const { authorization, xDate, contentSha256 } = this.signRequest({
-        method: 'POST',
-        path: '/',
-        ak,
-        sk,
-        region: 'cn-beijing',
-        service: 'ark',
-        query,
-        body: requestBody
-      });
-      
-      // safeLogger.mainLog('[ByteDanceProvider] Authorization:', authorization);
-      // safeLogger.mainLog('[ByteDanceProvider] X-Date:', xDate);
-      // safeLogger.mainLog('[ByteDanceProvider] X-Content-Sha256:', contentSha256);
-      
-      const queryString = Object.keys(query)
-        .sort()
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
-        .join('&');
-      
-      // safeLogger.mainLog('[ByteDanceProvider] Making API request to fetch models');
-      const response = await fetch(`https://ark.cn-beijing.volcengineapi.com/?${queryString}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Host': 'ark.cn-beijing.volcengineapi.com',
-          'X-Date': xDate,
-          'X-Content-Sha256': contentSha256,
-          'Authorization': authorization
-        },
-        body: requestBody
-      });
-      
-      // safeLogger.mainLog('[ByteDanceProvider] API response status:', response.status);
-      if (!response.ok) {
-        const errorText = await response.text();
-        // safeLogger.mainError('[ByteDanceProvider] API request failed:', errorText);
-        throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+      // 首先尝试从缓存获取模型列表
+      const cache = modelCacheManager.loadModelCache('bytedance');
+      if (cache && !modelCacheManager.isCacheExpired('bytedance')) {
+        safeLogger.mainLog('[ByteDanceProvider] Using cached model list');
+        let modelList = cache.models;
+        
+        // 如果有关键字过滤
+        if (keyword) {
+          modelList = modelList.filter(model => 
+            model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.description.toLowerCase().includes(keyword.toLowerCase())
+          );
+          safeLogger.mainLog('[ByteDanceProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+        }
+        
+        return modelList;
       }
       
-      const data = await response.json();
-      // safeLogger.mainLog('[ByteDanceProvider] API response data:', JSON.stringify(data, null, 2));
-      const models = data.Result?.Items || [];
-      // safeLogger.mainLog('[ByteDanceProvider] Found', models.length, 'models');
+      // 缓存不存在或过期，从API获取
+      safeLogger.mainLog('[ByteDanceProvider] Cache expired or not found, fetching from API');
+      const modelsFromAPI = await this.fetchModelsFromAPI(ak, sk);
       
-      const modelList: Array<{ id: string; name: string; description: string }> = models.map((model: any) => ({
-        id: model.Name,
-        name: model.DisplayName || model.Name,
-        description: model.Description || `ByteDance model: ${model.Name}`
-      }));
+      // 保存到缓存
+      modelCacheManager.saveModelCache('bytedance', modelsFromAPI);
       
-      // safeLogger.mainLog('[ByteDanceProvider] Generated model list:', modelList);
+      // 如果有关键字过滤
+      let modelList = modelsFromAPI;
+      if (keyword) {
+        modelList = modelList.filter(model => 
+          model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          model.description.toLowerCase().includes(keyword.toLowerCase())
+        );
+        safeLogger.mainLog('[ByteDanceProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+      }
+      
+      safeLogger.mainLog('[ByteDanceProvider] Generated model list:', modelList);
       return modelList;
-    } catch (error: any) {
-      // safeLogger.mainError('[ByteDanceProvider] Error fetching ByteDance models:', error.message);
-      // safeLogger.mainLog('[ByteDanceProvider] Using default models due to error');
+    } catch (error) {
+      safeLogger.mainError('[ByteDanceProvider] Error fetching models:', error);
+      // Return default models on error
+      safeLogger.mainLog('[ByteDanceProvider] Using default models due to error');
       return [
         {
           id: 'doubao-seed-2-0-pro-260215',

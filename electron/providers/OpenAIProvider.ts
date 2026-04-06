@@ -2,7 +2,9 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { OpenAI } from 'openai';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { modelCacheManager, CachedModel } from '../config/ModelCacheManager';
 import { getDefaultModel } from '../../src/config/models';
+import { safeLogger } from '../SafeLogger';
 
 export class OpenAIProvider extends BaseModelProvider {
   name = 'openai';
@@ -14,6 +16,42 @@ export class OpenAIProvider extends BaseModelProvider {
       solution: getDefaultModel('openai', 'solution'),
       debugging: getDefaultModel('openai', 'debugging')
     };
+  }
+
+  constructor() {
+    super();
+    // 启动定时更新模型列表的任务
+    this.startModelUpdateTask();
+  }
+
+  private startModelUpdateTask(): void {
+    modelCacheManager.startUpdateTask('openai', async () => {
+      try {
+        const config = modelConfigManager.getConfig();
+        const currentProviderConfig = config.providerConfigs['openai'];
+        const apiKey = currentProviderConfig.apiKey;
+
+        if (!apiKey) {
+          safeLogger.warn('[OpenAIProvider] API key not provided, cannot update model cache');
+          return [];
+        }
+
+        return await this.fetchModelsFromAPI(apiKey);
+      } catch (error) {
+        safeLogger.mainError('[OpenAIProvider] Error in model update task:', error);
+        return [];
+      }
+    });
+  }
+
+  private async fetchModelsFromAPI(apiKey: string): Promise<CachedModel[]> {
+    const client = await this.createClient(apiKey);
+    const models = await client.models.list();
+    return models.data.map(model => ({
+      id: model.id,
+      name: model.id,
+      description: `${(model as any).description || 'OpenAI model'} (${model.id})`
+    }));
   }
 
   async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
@@ -233,18 +271,46 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
-      const client = await this.getClient(apiKey);
-      // Use OpenAI API to list models
-      const models = await client.models.list();
-      return models.data.map(model => ({
-        id: model.id,
-        name: model.id,
-        description: model.description || `OpenAI model: ${model.id}`
-      }));
+      // 首先尝试从缓存获取模型列表
+      const cache = modelCacheManager.loadModelCache('openai');
+      if (cache && !modelCacheManager.isCacheExpired('openai')) {
+        safeLogger.mainLog('[OpenAIProvider] Using cached model list');
+        let modelList = cache.models;
+        
+        // 如果有关键字过滤
+        if (keyword) {
+          modelList = modelList.filter(model => 
+            model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.description.toLowerCase().includes(keyword.toLowerCase())
+          );
+          safeLogger.mainLog('[OpenAIProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+        }
+        
+        return modelList;
+      }
+      
+      // 缓存不存在或过期，从API获取
+      safeLogger.mainLog('[OpenAIProvider] Cache expired or not found, fetching from API');
+      const modelsFromAPI = await this.fetchModelsFromAPI(apiKey);
+      
+      // 保存到缓存
+      modelCacheManager.saveModelCache('openai', modelsFromAPI);
+      
+      // 如果有关键字过滤
+      let modelList = modelsFromAPI;
+      if (keyword) {
+        modelList = modelList.filter(model => 
+          model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          model.description.toLowerCase().includes(keyword.toLowerCase())
+        );
+        safeLogger.mainLog('[OpenAIProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+      }
+      
+      return modelList;
     } catch (error) {
-      console.error('Error fetching OpenAI models:', error);
+      safeLogger.mainError('Error fetching OpenAI models:', error);
       // Return default models on error
       return [
         {

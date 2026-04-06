@@ -2,7 +2,9 @@
 import { BaseModelProvider } from '../ModelProvider';
 import Anthropic from '@anthropic-ai/sdk';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { modelCacheManager, CachedModel } from '../config/ModelCacheManager';
 import { getDefaultModel } from '../../src/config/models';
+import { safeLogger } from '../SafeLogger';
 
 export class AnthropicProvider extends BaseModelProvider {
   name = 'anthropic';
@@ -14,6 +16,65 @@ export class AnthropicProvider extends BaseModelProvider {
       solution: getDefaultModel('anthropic', 'solution'),
       debugging: getDefaultModel('anthropic', 'debugging')
     };
+  }
+
+  constructor() {
+    super();
+    // 启动定时更新模型列表的任务
+    this.startModelUpdateTask();
+  }
+
+  private startModelUpdateTask(): void {
+    modelCacheManager.startUpdateTask('anthropic', async () => {
+      try {
+        const config = modelConfigManager.getConfig();
+        const currentProviderConfig = config.providerConfigs['anthropic'];
+        const apiKey = currentProviderConfig.apiKey;
+
+        if (!apiKey) {
+          safeLogger.warn('[AnthropicProvider] API key not provided, cannot update model cache');
+          return [];
+        }
+
+        return await this.fetchModelsFromAPI(apiKey);
+      } catch (error) {
+        safeLogger.mainError('[AnthropicProvider] Error in model update task:', error);
+        return [];
+      }
+    });
+  }
+
+  private async fetchModelsFromAPI(apiKey: string): Promise<CachedModel[]> {
+    const client = new Anthropic({ apiKey });
+    // Anthropic API doesn't have a direct models.list() method
+    // Using hardcoded models for now
+    return [
+      {
+        id: 'claude-3-opus-20240229',
+        name: 'Claude 3 Opus',
+        description: 'Most powerful Claude model (claude-3-opus-20240229)'
+      },
+      {
+        id: 'claude-3-sonnet-20240229',
+        name: 'Claude 3 Sonnet',
+        description: 'Balanced performance and speed (claude-3-sonnet-20240229)'
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        name: 'Claude 3 Haiku',
+        description: 'Fastest Claude model (claude-3-haiku-20240307)'
+      },
+      {
+        id: 'claude-2.1',
+        name: 'Claude 2.1',
+        description: 'Previous generation model (claude-2.1)'
+      },
+      {
+        id: 'claude-2',
+        name: 'Claude 2',
+        description: 'Previous generation model (claude-2)'
+      }
+    ];
   }
 
   private client: Anthropic | null = null;
@@ -239,34 +300,46 @@ If you include code examples, use proper markdown code blocks with language spec
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
-      // Anthropic API doesn't have a direct models.list() endpoint
-      // Return hardcoded models based on official documentation
-      return [
-        {
-          id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet',
-          description: 'Latest Claude model with enhanced capabilities'
-        },
-        {
-          id: 'claude-3-opus-20240229',
-          name: 'Claude 3 Opus',
-          description: 'Most powerful Claude model for complex tasks'
-        },
-        {
-          id: 'claude-3-sonnet-20240229',
-          name: 'Claude 3 Sonnet',
-          description: 'Balanced performance and efficiency'
-        },
-        {
-          id: 'claude-3-haiku-20240307',
-          name: 'Claude 3 Haiku',
-          description: 'Fast and cost-effective model'
+      // 首先尝试从缓存获取模型列表
+      const cache = modelCacheManager.loadModelCache('anthropic');
+      if (cache && !modelCacheManager.isCacheExpired('anthropic')) {
+        safeLogger.mainLog('[AnthropicProvider] Using cached model list');
+        let modelList = cache.models;
+        
+        // 如果有关键字过滤
+        if (keyword) {
+          modelList = modelList.filter(model => 
+            model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.description.toLowerCase().includes(keyword.toLowerCase())
+          );
+          safeLogger.mainLog('[AnthropicProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
         }
-      ];
+        
+        return modelList;
+      }
+      
+      // 缓存不存在或过期，从API获取
+      safeLogger.mainLog('[AnthropicProvider] Cache expired or not found, fetching from API');
+      const modelsFromAPI = await this.fetchModelsFromAPI(apiKey);
+      
+      // 保存到缓存
+      modelCacheManager.saveModelCache('anthropic', modelsFromAPI);
+      
+      // 如果有关键字过滤
+      let modelList = modelsFromAPI;
+      if (keyword) {
+        modelList = modelList.filter(model => 
+          model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          model.description.toLowerCase().includes(keyword.toLowerCase())
+        );
+        safeLogger.mainLog('[AnthropicProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+      }
+      
+      return modelList;
     } catch (error) {
-      console.error('Error fetching Anthropic models:', error);
+      safeLogger.mainError('Error fetching Anthropic models:', error);
       // Return default models on error
       return [
         {

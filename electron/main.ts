@@ -8,6 +8,7 @@ import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import { configHelper } from "./ConfigHelper"
 import { ModelProviderRegistry } from "./ModelProviderRegistry"
+import { modelCacheManager } from "./config/ModelCacheManager"
 import * as dotenv from "dotenv"
 import { safeLogger } from "./SafeLogger"
 
@@ -611,9 +612,16 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
+      // 停止所有模型更新任务
+      modelCacheManager.stopAllUpdateTasks()
       app.quit()
       state.mainWindow = null
     }
+  })
+  
+  // 当应用退出时停止所有模型更新任务
+  app.on("quit", () => {
+    modelCacheManager.stopAllUpdateTasks()
   })
 }
 

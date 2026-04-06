@@ -2,7 +2,9 @@
 import { BaseModelProvider } from '../ModelProvider';
 import { GoogleGenAI } from '@google/genai';
 import { modelConfigManager } from '../config/ModelConfigManager';
+import { modelCacheManager, CachedModel } from '../config/ModelCacheManager';
 import { getDefaultModel } from '../../src/config/models';
+import { safeLogger } from '../SafeLogger';
 
 export class GeminiProvider extends BaseModelProvider {
   name = 'gemini';
@@ -14,6 +16,65 @@ export class GeminiProvider extends BaseModelProvider {
       solution: getDefaultModel('gemini', 'solution'),
       debugging: getDefaultModel('gemini', 'debugging')
     };
+  }
+
+  constructor() {
+    super();
+    // 启动定时更新模型列表的任务
+    this.startModelUpdateTask();
+  }
+
+  private startModelUpdateTask(): void {
+    modelCacheManager.startUpdateTask('gemini', async () => {
+      try {
+        const config = modelConfigManager.getConfig();
+        const currentProviderConfig = config.providerConfigs['gemini'];
+        const apiKey = currentProviderConfig.apiKey;
+
+        if (!apiKey) {
+          safeLogger.warn('[GeminiProvider] API key not provided, cannot update model cache');
+          return [];
+        }
+
+        return await this.fetchModelsFromAPI(apiKey);
+      } catch (error) {
+        safeLogger.mainError('[GeminiProvider] Error in model update task:', error);
+        return [];
+      }
+    });
+  }
+
+  private async fetchModelsFromAPI(apiKey: string): Promise<CachedModel[]> {
+    const genAI = new GoogleGenAI({ apiKey });
+    // Google GenAI API doesn't have a direct models.list() method
+    // Using hardcoded models for now
+    return [
+      {
+        id: 'gemini-2.5-flash-lite',
+        name: 'Gemini 2.5 Flash Lite',
+        description: 'Fast and efficient Gemini model (gemini-2.5-flash-lite)'
+      },
+      {
+        id: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        description: 'Balanced performance and speed (gemini-2.5-flash)'
+      },
+      {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        description: 'Most powerful Gemini model (gemini-2.5-pro)'
+      },
+      {
+        id: 'gemini-1.5-flash',
+        name: 'Gemini 1.5 Flash',
+        description: 'Previous generation fast model (gemini-1.5-flash)'
+      },
+      {
+        id: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro',
+        description: 'Previous generation powerful model (gemini-1.5-pro)'
+      }
+    ];
   }
 
   async validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
@@ -89,6 +150,9 @@ export class GeminiProvider extends BaseModelProvider {
     });
 
     const responseText = response.text;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     const jsonText = responseText.replace(/```json|```/g, '').trim();
     return JSON.parse(jsonText);
   }
@@ -157,6 +221,9 @@ I need the response in the following format:
     });
 
     const responseText = response.text;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     return this.parseSolutionResponse(responseText);
   }
 
@@ -232,50 +299,52 @@ If you include code examples, use proper markdown code blocks with language spec
     });
 
     const responseText = response.text;
+    if (!responseText) {
+      throw new Error('Empty response from API');
+    }
     return this.parseDebugResponse(responseText);
   }
 
-  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string): Promise<Array<{ id: string; name: string; description: string }>> {
+  async getModels(apiKey: string, accessKeyId?: string, secretAccessKey?: string, keyword?: string): Promise<Array<{ id: string; name: string; description: string }>> {
     try {
-      const client = await this.getClient(apiKey);
-      // Use Google GenAI SDK to list models
-      // Note: The Google GenAI SDK doesn't have a direct models.list() method
-      // We'll use the available models from the official documentation
-      // and return them as the model list
-      return [
-        {
-          id: 'gemini-2.5-flash',
-          name: 'Gemini 2.5 Flash',
-          description: 'Latest fast and versatile model'
-        },
-        {
-          id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro',
-          description: 'Advanced model with enhanced capabilities'
-        },
-        {
-          id: 'gemini-2.0-flash',
-          name: 'Gemini 2.0 Flash',
-          description: 'Fast and efficient model for general tasks'
-        },
-        {
-          id: 'gemini-2.0-pro',
-          name: 'Gemini 2.0 Pro',
-          description: 'Powerful model for complex tasks'
-        },
-        {
-          id: 'gemini-1.5-flash',
-          name: 'Gemini 1.5 Flash',
-          description: 'Previous generation fast model'
-        },
-        {
-          id: 'gemini-1.5-pro',
-          name: 'Gemini 1.5 Pro',
-          description: 'Previous generation powerful model'
+      // 首先尝试从缓存获取模型列表
+      const cache = modelCacheManager.loadModelCache('gemini');
+      if (cache && !modelCacheManager.isCacheExpired('gemini')) {
+        safeLogger.mainLog('[GeminiProvider] Using cached model list');
+        let modelList = cache.models;
+        
+        // 如果有关键字过滤
+        if (keyword) {
+          modelList = modelList.filter(model => 
+            model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.description.toLowerCase().includes(keyword.toLowerCase())
+          );
+          safeLogger.mainLog('[GeminiProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
         }
-      ];
+        
+        return modelList;
+      }
+      
+      // 缓存不存在或过期，从API获取
+      safeLogger.mainLog('[GeminiProvider] Cache expired or not found, fetching from API');
+      const modelsFromAPI = await this.fetchModelsFromAPI(apiKey);
+      
+      // 保存到缓存
+      modelCacheManager.saveModelCache('gemini', modelsFromAPI);
+      
+      // 如果有关键字过滤
+      let modelList = modelsFromAPI;
+      if (keyword) {
+        modelList = modelList.filter(model => 
+          model.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          model.description.toLowerCase().includes(keyword.toLowerCase())
+        );
+        safeLogger.mainLog('[GeminiProvider] Filtered models by keyword:', keyword, 'found:', modelList.length);
+      }
+      
+      return modelList;
     } catch (error) {
-      console.error('Error fetching Gemini models:', error);
+      safeLogger.mainError('Error fetching Gemini models:', error);
       // Return default models on error
       return [
         {

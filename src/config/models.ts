@@ -337,7 +337,11 @@ export const providers: ProviderInfo[] = [
  * 获取指定供应商的模型列表
  */
 export function getModelsByProvider(provider: APIProvider): AIModel[] {
-  return providerModelsMap[provider] || [];
+  const models = providerModelsMap[provider] || [];
+  return models.map(model => ({
+    ...model,
+    description: `${model.description} (${model.id})`
+  }));
 }
 
 /**
@@ -482,7 +486,10 @@ export function getModelsByProviderWithCustom(provider: APIProvider): AIModel[] 
   const providerCustomModels = customModels.filter(m => 
     // 自定义模型ID格式: custom-{provider}-{modelId}
     m.id.startsWith(`custom-${provider}-`)
-  );
+  ).map(model => ({
+    ...model,
+    description: `${model.description} (${model.id})`
+  }));
   return [...baseModels, ...providerCustomModels];
 }
 
