@@ -304,7 +304,8 @@ If you include code examples, use proper markdown code blocks with language spec
     try {
       // 首先尝试从缓存获取模型列表
       const cache = modelCacheManager.loadModelCache('anthropic');
-      if (cache && !modelCacheManager.isCacheExpired('anthropic')) {
+      // 只有当缓存存在、未过期且不为空时才使用
+      if (cache && !modelCacheManager.isCacheExpired('anthropic') && !modelCacheManager.isCacheEmpty('anthropic')) {
         safeLogger.mainLog('[AnthropicProvider] Using cached model list');
         let modelList = cache.models;
         

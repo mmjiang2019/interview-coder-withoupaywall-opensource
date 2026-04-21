@@ -86,7 +86,8 @@ export class ZhipuProvider extends BaseModelProvider {
     try {
       // 首先尝试从缓存获取模型列表
       const cache = modelCacheManager.loadModelCache('zhipu');
-      if (cache && !modelCacheManager.isCacheExpired('zhipu')) {
+      // 只有当缓存存在、未过期且不为空时才使用
+      if (cache && !modelCacheManager.isCacheExpired('zhipu') && !modelCacheManager.isCacheEmpty('zhipu')) {
         safeLogger.mainLog('[ZhipuProvider] Using cached model list');
         let modelList = cache.models;
         

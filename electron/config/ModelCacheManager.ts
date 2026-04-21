@@ -106,6 +106,36 @@ export class ModelCacheManager {
   }
 
   /**
+   * 检查缓存是否为空或不存在
+   */
+  public isCacheEmpty(provider: AIProvider): boolean {
+    const cache = this.loadModelCache(provider);
+    if (!cache) return true;
+    if (!cache.models || cache.models.length === 0) return true;
+    return false;
+  }
+
+  /**
+   * 强制刷新缓存（当缓存为空时调用）
+   */
+  public async forceRefreshCache(provider: AIProvider, updateFn: () => Promise<CachedModel[]>): Promise<CachedModel[]> {
+    try {
+      safeLogger.mainLog(`Force refreshing cache for ${provider}`);
+      const newModels = await updateFn();
+      if (newModels.length > 0) {
+        this.saveModelCache(provider, newModels);
+        safeLogger.mainLog(`Force refresh successful for ${provider}: ${newModels.length} models`);
+      } else {
+        safeLogger.mainLog(`Force refresh returned empty list for ${provider}`);
+      }
+      return newModels;
+    } catch (error) {
+      safeLogger.mainError(`Error force refreshing cache for ${provider}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * 比较模型列表是否有变化
    */
   public hasModelChanges(provider: AIProvider, newModels: CachedModel[]): boolean {
