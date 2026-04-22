@@ -331,6 +331,13 @@ async function createWindow(): Promise<void> {
 
     // Disable window shadow
     state.mainWindow.setHasShadow(false)
+
+    // Set window level to highest priority to prevent capture
+    state.mainWindow.setAlwaysOnTop(true, "floating", 1000)
+
+    // Add additional macOS-specific properties to prevent capture
+    // These properties help prevent the window from being captured by remote login and screen sharing
+    state.mainWindow.setContentProtection(true)
   }
 
   // Prevent the window from being captured by screen recording
@@ -417,6 +424,13 @@ function showMainWindow(): void {
       visibleOnFullScreen: true
     });
     state.mainWindow.setContentProtection(true);
+    
+    // Enhance screen capture resistance for macOS
+    if (process.platform === "darwin") {
+      state.mainWindow.setAlwaysOnTop(true, "floating", 1000);
+      state.mainWindow.setContentProtection(true);
+    }
+    
     state.mainWindow.setOpacity(0); // Set opacity to 0 before showing
     state.mainWindow.showInactive(); // Use showInactive instead of show+focus
     state.mainWindow.setOpacity(1); // Then set opacity to 1 after showing
